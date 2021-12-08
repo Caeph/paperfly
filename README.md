@@ -20,3 +20,6 @@ and then update your path if needed.
 ```
 export PATH=$PATH:<paperfly directory>
 ```
+
+# Reference
+The article describing hte method was not published yet.
