@@ -5,6 +5,7 @@
 - jellyfish -- can be downloaded from repositories
 - bcalm -- can be downloaded from repositories
 - mono-complete for building the c# 
+- dotnet
 - graphviz for drawing
 
 All of these are available from the Linux repositories.
