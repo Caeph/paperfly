@@ -3,9 +3,12 @@
 # Requirements:
 - python 3.8 or newer
 - jellyfish -- can be downloaded from repositories
-- bcalm2 -- can be downloaded from repositories
+- bcalm -- can be downloaded from repositories
 - mono-complete for building the c# 
+- dotnet
 - graphviz for drawing
+
+All of these are available from the Linux repositories.
 
 # Instalation:
 Clone the repository. Use the included makefile to 
@@ -20,3 +23,6 @@ and then update your path if needed.
 ```
 export PATH=$PATH:<paperfly directory>
 ```
+
+# Reference
+The article describing hte method was not published yet.
