@@ -1,6 +1,7 @@
 # python virtual environment
 venv/
 *__pycache__/
+*packages/
 # the rest of the .gitignore was downloaded from https://gist.github.com/takekazuomi/109558
 
 # The following command works for downloading when using Git for Windows:
