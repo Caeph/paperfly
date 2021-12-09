@@ -4,7 +4,7 @@ venv/
 *packages/
 
 # potential leftovers from the run
-paperfly_output*
+output_paperfly*
 *.h5
 
 .run/
