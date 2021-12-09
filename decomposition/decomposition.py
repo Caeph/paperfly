@@ -10,11 +10,7 @@ import pandas as pd
 from pyfastaq.tasks import to_fasta
 from pyfastaq.sequences import file_reader as fasta_reader
 import preprocessing as prep
-# import training_weighted as hmm
-import pomegranate as pm
 import numpy as np
-from itertools import product
-import time
 from statistics import strongly_connected_components_description
 
 parser = argparse.ArgumentParser()
@@ -155,27 +151,6 @@ def print_singles(singles_path, output_path):
             writer.write(f"{entry.seq};{count}\n")
 
 
-def run_assemblation(args, components_dir, report=5,
-                     path_to_sampler="~/Projects/MatrixMotif/debruijn_pipeline/Sampler/Sampler/bin/Release/Sampler.exe"):
-    # TODO deal with path in a reasonable way...
-    assemblies_dir = os.path.join(args.working_dir, "assemblies")
-    process = subprocess.run([f"{path_to_sampler} --input_path {components_dir} "
-                              f"--samplingDepth {args.sampling_depth} "
-                              f"--k {args.k} "
-                              f"--output_path {assemblies_dir} "
-                              f"--samplerType sequence "
-                              f"--report_step {report}"
-                              ],
-                             shell=True)
-    prep.evaluate_process(process, continue_if_bad=False)
-
-    print("printing singles...")
-    print_singles(os.path.join(components_dir, "singles.comp.fasta"),
-                  os.path.join(assemblies_dir, "singles.comp.fasta.csv"))
-
-    return assemblies_dir
-
-
 def pool_assemblies(args, assemblies_dir):
     lst = []
     print("pooling...")
@@ -233,17 +208,6 @@ def main(args):
     components_path = run_prep(args, fastapath)
 
     strongly_connected_components_description(components_path)
-
-    # run on each component the C# sampler. Runs in parallel.
-    # assemblies_dir = run_assemblation(args, components_path)
-
-    # assemblies_csv = pool_assemblies(args, assemblies_dir)
-    # print(f"All pseudo-assembled sequences are stored in {assemblies_dir}.")
-
-    # learn the model on the sampled data
-    # run the learnt model on the original fasta
-    # cluster identified models
-    # train_model_multinomial(args, assemblies_csv, fastapath)
 
 
 if __name__ == '__main__':
