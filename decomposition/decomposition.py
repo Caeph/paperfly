@@ -5,7 +5,6 @@ import os
 import datetime
 import re
 import shutil
-import subprocess
 import pandas as pd
 from pyfastaq.tasks import to_fasta
 from pyfastaq.sequences import file_reader as fasta_reader
@@ -59,6 +58,15 @@ parser.add_argument("--draw",
                          "Takes time, but can be useful for visual analysis of the component. Optional. "
                          "Has a time threshold, so extra large component may not be drawn.",
                     )
+parser.add_argument("--control_filename",
+                    default=None,
+                    type=str,
+                    help="Name of a file with control reads. Can be in fasta, fastq or gzipped fastq format. "
+                         "If the file format is fastq or gzipped fastq, it must be indicated by file suffix: "
+                         "<control>.fastq, <control>.fastq.gz."
+                         "The k-mers in control will be substracted from the k-mers in the input file BEFORE "
+                         "abundancy filtering."
+                    )
 parser.add_argument("--unwrap",
                     dest='unwrap',
                     action='store_true',
@@ -110,7 +118,6 @@ def get_fasta_from_fastq(fastqfile, args):
 
     return path_to_fasta
 
-
 def run_prep(args, fastapath):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
 
@@ -143,30 +150,6 @@ def run_prep(args, fastapath):
 
     return compdir
 
-
-def print_singles(singles_path, output_path):
-    with open(output_path, mode='w') as writer:
-        for entry in fasta_reader(singles_path):
-            count = min(int(x) for x in entry.id.split(' ')[4].split(','))
-            writer.write(f"{entry.seq};{count}\n")
-
-
-def pool_assemblies(args, assemblies_dir):
-    lst = []
-    print("pooling...")
-    for filename in os.listdir(assemblies_dir):
-        df = pd.read_csv(os.path.join(assemblies_dir, filename), index_col=None, header=None, sep=';')
-        lst.append(df)
-    all_assembled_df = pd.concat(lst, axis=0, ignore_index=True)
-    all_assembled_df.columns = ['sequence', 'count']
-
-    all_assembled_file = os.path.join(args.working_dir, "all_assembled.csv")
-
-    all_assembled_df.to_csv(all_assembled_file, index=False)
-    print(f"pooling done, stored in {all_assembled_file}")
-    return all_assembled_file
-
-
 def main(args):
     # check if input exists
     if (args.input_fastq is None) and (args.input_fasta is None):
@@ -198,6 +181,12 @@ def main(args):
         fastapath = args.input_fasta
     else:  # got fastq
         fastapath = get_fasta_from_fastq(args.input_fastq, args)
+
+    # get fasta filename OR None from control
+    if args.control_filename is not None:
+        original_controlname = args.control_filename
+        if (original_controlname[:-9] == ".fastq.gz") or (original_controlname[:-6] == ".fastq"):
+            args.control_filename = get_fasta_from_fastq(original_controlname, args)
 
     # minimal abundance calculation
     if args.minimal_abundance is None:
