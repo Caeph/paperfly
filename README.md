@@ -4,7 +4,7 @@ The PseudoAssembly based Peak Finder (PAPerFly) assembles the sequencing reads s
 This repository is still under construction and some additions will be made to the code.
 
 # Requirements
-- python 3.8 or newer, python3.8-venv 
+- python 3.8 or newer, python3.8-venv to create a virtual environment
 - jellyfish -- can be downloaded from repositories or compiled from https://github.com/gmarcais/Jellyfish
 - bcalm -- can be downloaded from repositories or compiled from https://github.com/GATB/bcalm
 - mono, msbuild and nuget for building and running the c# applications (msbuild can usually be downloaded as a part mono-complete packages)
@@ -14,7 +14,7 @@ All of these are available from the Linux repositories. All of these must be in 
 
 # Instalation
 Clone the repository. Use the included makefile to 
-- create a python virtual environment and install the required packages
+- create a python virtual environment and install the required packages via the venv pip
 - build the C# binaries
 
 Just run 
