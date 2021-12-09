@@ -15,48 +15,28 @@ drawing_timeout = 20
 jellyfish_settings = "-s 1G -t 10 -C"
 
 
-def select_components_for_learning(component_reads_dir, min_read_count=100):  # na components_reads?
-    selected = []
+def get_control_counts(control, k, flag="unitigs", directory=None):
+    if (directory is not None) and (len(directory) > 0):
+        dir = directory + '/'
+    else:
+        dir = ""
 
-    for component in os.listdir(component_reads_dir):
-        path_reads = os.path.join(component_reads_dir, component)
-        read_count = count_sequences(path_reads)
-        if read_count >= min_read_count:
-            selected.append(component)
-    return selected
+    control_mers = f"{dir}control.{k}.fa"
 
+    # jellyfish count -m $k -s 1G -t 10 -o control_counts.tmp --if mers.unitigs.$k.fa $control
+    process = subprocess.run(
+        [
+            f"{jellyfish_path} count -m {k} -s 1G -t 10 -o {control_mers}.tmp {control}"],
+        shell=True)
+    evaluate_process(process)
 
-def filter_one_kmer_on_read(fasta_data, jf_csv, k, csvname="one_kmer_on_read.counts.csv", stub=False):
-    # this is mostly unusable and takes long
-    fasta = pyfs.file_reader(fasta_data)
-    iter = 0
-    counter = Counter()
-    for entry in fasta:
-        kmerset = set()
-        for i in range(len(entry.seq) - k + 1):
-            kmer = entry.seq[i:i + k]
-            if kmer in kmerset:
-                counter[kmer] += 1
-            else:
-                kmerset.add(kmer)
-        iter += 1
+    # jellyfish dump -c counts.tmp > $outfile
+    process = subprocess.run(
+        [f"{jellyfish_path} dump -c {control_mers}.tmp > {control_mers}"],
+        shell=True)
+    evaluate_process(process)
 
-    with open(csvname, mode='w') as writer:
-        for key, val in counter.items():
-            writer.write("%s %i\n" % (key, val))
-
-    multiple_kmers_onread = pd.read_csv(csvname, sep=' ', header=None)
-    multiple_kmers_onread.columns = ['kmer', 'count']
-
-    jf_df = pd.read_csv(jf_csv, sep=' ', header=None)
-    jf_df.columns = ['kmer', 'count']
-
-    df = pd.merge(jf_df, multiple_kmers_onread, on='kmer', suffixes=['', '_multip'], how='left').fillna(0)
-    df['count_one_on_read'] = df['count'] - df['count_multip']
-    df = df[['kmer', 'count_one_on_read']]
-
-    df.to_csv(csvname, header=False, index=False, sep=' ')
-    return csvname
+    return control_mers
 
 
 def evaluate_process(completed, continue_if_bad=False):
@@ -150,19 +130,18 @@ def run_jellyfish_bcalm_kmers_canonical(fasta, kmers_file, k, flag="unitigs_cano
     return outputname
 
 
-def run_jellyfish_bcalm_kmers(fasta, unitigs, k, flag="unitigs", directory=None, stub=False, cleanup=True):
-    # TODO sanitize - is jellyfish installed? in path?
+def run_jellyfish_bcalm_kmers(fasta, unitigs, k, flag="unitigs", directory=None, stub=False, cleanup=True, control=None, control_flag="control"):
     print(f"running jellyfish on {fasta}")
     outputname = unitigs + ".counts.csv"
     if stub:
         return outputname
 
+    # get k-mers that are found in the unitigs file
     # jellyfish count -m $k -s 100M -t 10 -o mers.unitigs.$k.jf $unitigs
     if (directory is not None) and (len(directory) > 0):
         dir = directory + '/'
     else:
         dir = ""
-
     process = subprocess.run([f"{jellyfish_path} count -m {k} -s 100M -t 10 -o {dir}mers.{flag}.{k}.jf {unitigs}"],
                              shell=True)
     evaluate_process(process)
@@ -172,6 +151,7 @@ def run_jellyfish_bcalm_kmers(fasta, unitigs, k, flag="unitigs", directory=None,
                              shell=True)
     evaluate_process(process)
 
+    # count the number of k-mers of interest
     # jellyfish count -m $k -s 1G -t 10 -o counts.tmp --if mers.unitigs.$k.fa $infile
     process = subprocess.run(
         [
@@ -184,25 +164,12 @@ def run_jellyfish_bcalm_kmers(fasta, unitigs, k, flag="unitigs", directory=None,
         [f"{jellyfish_path} dump -c {dir}counts.{flag}.tmp > {outputname}"],
         shell=True)
     evaluate_process(process)
-    # cleanup
 
     if cleanup:
         for fl in [f"{dir}counts.{flag}.tmp", f"{dir}mers.{flag}.{k}.fa", f"{dir}mers.{flag}.{k}.jf"]:
             os.remove(fl)
 
     return outputname
-
-
-def calculate_min_abundance(fasta_data, quantile=0.99):
-    bcalm_file = run_bcalm(fasta_data, 20,
-                           2, stub=True)
-    # 2 - bcalm default for assembly
-    # should filter out the most obvious sequencing mistakes
-    fasta = pyfs.file_reader(bcalm_file)
-    total_abus = np.array([entry.id.split(' ')[3].split(':')[-1] for entry in fasta]).astype(float)  # km
-
-    # print(np.quantile(total_abus, [0.25, 0.5, 0.75, 0.9, 0.95, 0.975, 0.99, 0.995]))
-    return np.round(np.quantile(total_abus, [quantile])[0])
 
 
 def divide_to_components(filtered_unitigs, comp_dir="components", canonical=False):
@@ -508,59 +475,6 @@ def filter_abundance(input, req_abu, k, tmp_outfile='filtered_unitigs.tmp',
     for fl in [tmp_outfile, buffer_name]:
         os.remove(fl)
     return outputname
-
-
-def assign_reads_to_component(components_dir, fasta_data, k, read_comp_dir="reads_in_components"):
-    sq_to_comp = {}
-
-    for comp in os.listdir(components_dir):
-        comp_file = f"{components_dir}/{comp}"
-        comp_id = comp.split('.')[0]
-        if comp_id != 'singles':
-            comp_id = int(comp_id)
-        else:
-            continue
-            # comp_id = -1
-        fasta = pyfs.file_reader(comp_file)
-        # print(comp_id)
-
-        for entry in fasta:
-            if len(entry.seq) == k:
-                sq_to_comp[entry.seq] = comp
-                # sq_to_comp[entry.seq] = comp_id
-            else:
-                for i in range(len(entry.seq) - k + 1):
-                    sq_to_comp[entry.seq[i:(i + k)]] = comp
-                    # sq_to_comp[entry.seq[i:(i + k)]] = comp_id
-
-    # print(total_time)
-    # print(sq_to_comp)
-    orig_fasta = pyfs.file_reader(fasta_data)
-
-    os.makedirs(read_comp_dir, exist_ok=False)  # appendovani - tohle pomaha proti kupeni info ve filech z ruznych behu
-    print("Directory now exists.")
-
-    total_no_reads = 0
-    empty_no_reads = 0
-
-    for entry in orig_fasta:
-        if total_no_reads % 1000000 == 0:  # this takes long
-            print("now at ", total_no_reads)
-        counter = Counter()
-        total_no_reads += 1
-        for i in range(len(entry.seq) - k + 1):
-            kmer = entry.seq[i:(i + k)]
-            if kmer in sq_to_comp:
-                counter[sq_to_comp[kmer]] += 1
-        if len(counter) > 0:
-            component = counter.most_common(1)[0][0]
-            file = open(f"{read_comp_dir}/{component}", mode='a')
-            file.write(f">{entry.id}\n{entry.seq}\n")
-            file.close()
-        else:
-            empty_no_reads += 1
-    print(total_no_reads, empty_no_reads)
-
 
 def draw_components(compdir, req_abu, picdir=None, canonical=False, skip_linear=False):
     if picdir is None:

@@ -2,7 +2,15 @@
 venv/
 *__pycache__/
 *packages/
+
+# potential leftovers from the run
 paperfly_output*
+*.h5
+
+.run/
+.idea/
+
+
 # the rest of the .gitignore was downloaded from https://gist.github.com/takekazuomi/109558
 
 # The following command works for downloading when using Git for Windows:

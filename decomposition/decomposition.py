@@ -99,21 +99,21 @@ def calculate_minimal_abundance(args, fastapath, percentile=75, cleanup=False):
 def get_fasta_from_fastq(fastqfile, args):
     zipped = False
     if fastqfile[-3:] == ".gz":  # unzip
-        print("unzipping file...")
+        print(f"unzipping file {fastqfile}...")
         zipped = True
         unzipped_filename = os.path.join(args.working_dir, os.path.split(fastqfile)[1].split(".")[0]) + ".fastq"
-        with gzip.open(args.input_fastq, 'rb') as f_in:
+        with gzip.open(fastqfile, 'rb') as f_in:
             with open(unzipped_filename, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
     else:
         unzipped_filename = args.input_fastq
 
-    print("extracting FASTQ file to FASTA...")
+    print(f"extracting FASTQ file {unzipped_filename} to FASTA...")
     path_to_fasta = os.path.join(args.working_dir, os.path.split(fastqfile)[1].split(".")[0]) + ".fasta"
     to_fasta(unzipped_filename, path_to_fasta)
 
     if zipped:
-        print("removing the superfluous FASTQ (only the original gzipped version is kept)...")
+        print(f"removing the superfluous FASTQ {unzipped_filename} (only the original gzipped version is kept)...")
         os.remove(unzipped_filename)
 
     return path_to_fasta
@@ -121,27 +121,38 @@ def get_fasta_from_fastq(fastqfile, args):
 def run_prep(args, fastapath):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
 
-    if not args.canonical:
-        unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance * 2)
-    else:
-        unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance)
+    unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance * 2)
     os.rename(unitigs, base_path + ".unitigs.fa")
     unitigs = base_path + ".unitigs.fa"
 
-    if not args.canonical:
-        moved = prep.replace_zero_index(unitigs)
-        expanded = prep.expand(moved)
-        jf_csv = prep.run_jellyfish_bcalm_kmers(fastapath,
-                                                expanded,
-                                                args.k,
-                                                directory=args.working_dir)
-        linked_unitigs = prep.link_jellyfish_counts(expanded, jf_csv, args.k)
-        filtered = prep.filter_abundance(linked_unitigs, args.minimal_abundance, args.k)
-        if args.unwrap:
-            prep.split_unitigs(filtered, base_path+".split.fa", args.k)
-            filtered = base_path+".split.fa"
-    else:
-        filtered = unitigs
+    moved = prep.replace_zero_index(unitigs)
+    expanded = prep.expand(moved)
+    jf_csv = prep.run_jellyfish_bcalm_kmers(fastapath,
+                                            expanded,
+                                            args.k,
+                                            directory=args.working_dir,
+                                            cleanup=False
+                                            )
+
+    if args.control_filename is not None:
+        control_counts_filename = prep.get_control_counts(args.control_filename, args.k, directory=args.working_dir)
+        control_counts = pd.read_csv(control_counts_filename, sep=' ', header=None)
+        control_counts.columns = ['kmer', 'count']
+        current_counts = pd.read_csv(jf_csv, sep=' ', header=None)
+        current_counts.columns = ['kmer', 'count']
+
+        merged = pd.merge(current_counts, control_counts, how='left', on='kmer', suffixes=['', '_control'])
+        merged = merged.fillna(0)
+
+        merged["updated_count"] = np.fmax(merged['count'] - merged['count_control'], 0).astype(int)
+        merged = merged.drop(columns=['count', 'count_control'])
+        merged.to_csv(jf_csv, header=False, index=False, sep=' ')
+
+    linked_unitigs = prep.link_jellyfish_counts(expanded, jf_csv, args.k)
+    filtered = prep.filter_abundance(linked_unitigs, args.minimal_abundance, args.k)
+    if args.unwrap:
+        prep.split_unitigs(filtered, base_path+".split.fa", args.k)
+        filtered = base_path+".split.fa"
 
     compdir = prep.divide_to_components(filtered, comp_dir=os.path.join(args.working_dir, "components"),
                                         canonical=args.canonical)
@@ -159,16 +170,16 @@ def main(args):
     # create working_directory
     if args.working_dir is None:
         if args.input_fasta is not None:
-            input_short = f"fasta={os.path.split(args.input_fasta)[1]}"
+            input_short = f"fasta={os.path.split(args.input_fasta)[-1]}"
         else:  # got fastq
-            input_short = f"fastq={os.path.split(args.input_fastq)[1]}"
+            input_short = f"fastq={os.path.split(args.input_fastq)[-1]}"
         args.working_dir = "{}-{}-{}".format(
             "motif_finding",
             datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
             "_".join(
                 [*("{}={}".format(re.sub("(.)[^_]*_?", r"\1", key), value) for key, value in sorted(vars(args).items())
                    if
-                   key not in ["working_dir", "input_fasta", "input_fastq"]), input_short]
+                   key not in ["working_dir", "input_fasta", "input_fastq", "control_filename"]), input_short]
             )
         )
         print(f"The working dir was set as {args.working_dir}")
@@ -185,7 +196,7 @@ def main(args):
     # get fasta filename OR None from control
     if args.control_filename is not None:
         original_controlname = args.control_filename
-        if (original_controlname[:-9] == ".fastq.gz") or (original_controlname[:-6] == ".fastq"):
+        if (original_controlname[-9:] == ".fastq.gz") or (original_controlname[-6:] == ".fastq"):
             args.control_filename = get_fasta_from_fastq(original_controlname, args)
 
     # minimal abundance calculation
@@ -195,7 +206,6 @@ def main(args):
 
     # # expand canonical, divide to (weakly connected) components, optionally draw
     components_path = run_prep(args, fastapath)
-
     strongly_connected_components_description(components_path)
 
 

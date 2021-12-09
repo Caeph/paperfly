@@ -245,6 +245,7 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
         ranges = get_peak_ranges(smooth_profile, prominence=prominence, window=window)
 
         if len(ranges) == 0:
+            counter.next()
             continue
 
         align_ident = int(file.split('.')[0])
