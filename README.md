@@ -5,8 +5,8 @@ This repository is still under construction and some additions will be made to t
 
 # Requirements
 - python 3.8 or newer, python3.8-venv to create a virtual environment
-- jellyfish -- can be downloaded from repositories or compiled from https://github.com/gmarcais/Jellyfish
-- bcalm -- can be downloaded from repositories or compiled from https://github.com/GATB/bcalm
+- jellyfish -- can be downloaded from Linux repositories or compiled from https://github.com/gmarcais/Jellyfish
+- bcalm -- can be downloaded from Linux repositories or compiled from https://github.com/GATB/bcalm
 - mono, msbuild and nuget for building and running the c# applications (msbuild can usually be downloaded as a part mono-complete packages)
 - graphviz for drawing (only sfdp is used)
 
