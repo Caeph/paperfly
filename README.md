@@ -1,17 +1,20 @@
 # Paperfly: a software for analysis of ChIP-seq (or similar) experiments without the reference genome
 
-# Requirements
-- python 3.8 or newer
-- jellyfish -- can be downloaded from repositories or compiled from https://github.com/gmarcais/Jellyfish
-- bcalm -- can be downloaded from repositories or compiled from https://github.com/GATB/bcalm
-- mono, msbuild and nuget for building and running the c# applications (msbuild can usually be downloaded as a part )
-- graphviz for drawing
+The PseudoAssembly based Peak Finder (PAPerFly) assembles the sequencing reads seen during a ChIP-seq or similar experiment. 
+This repository is still under construction and some additions will be made to the code.
 
-All of these are available from the Linux repositories.
+# Requirements
+- python 3.8 or newer, python3.8-venv to create a virtual environment
+- jellyfish -- can be downloaded from Linux repositories or compiled from https://github.com/gmarcais/Jellyfish
+- bcalm -- can be downloaded from Linux repositories or compiled from https://github.com/GATB/bcalm
+- mono, msbuild and nuget for building and running the c# applications (msbuild can usually be downloaded as a part mono-complete packages)
+- graphviz for drawing (only sfdp is used)
+
+All of these are available from the Linux repositories. All of these must be in your path for the program to function properly.
 
 # Instalation
 Clone the repository. Use the included makefile to 
-- create a python virtual environment and install the required packages
+- create a python virtual environment and install the required packages via the venv pip
 - build the C# binaries
 
 Just run 
@@ -26,7 +29,7 @@ export PATH=$PATH:<paperfly directory>
 The core of paperfly is a bash script.
 
 # Running
-Still to do. A compplete list of required and optional parameters will be added as soon as possible, as well as some example files.
+Still to do. A complete list of required and optional parameters will be added as soon as possible, as well as some example files.
 
 # Reference
 The article describing the method was not published yet, but we are working on that. Both BCALM and Jellyfish will be properly cited in the publication.
