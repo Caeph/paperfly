@@ -10,7 +10,7 @@ This repository is still under construction and some additions will be made to t
 - mono, msbuild and nuget for building and running the c# applications (msbuild can usually be downloaded as a part mono-complete packages)
 - graphviz for drawing (only sfdp is used)
 
-All of these are available from the Linux repositories. All of these should be in your path.
+All of these are available from the Linux repositories. All of these must be in your path for the program to function properly.
 
 # Instalation
 Clone the repository. Use the included makefile to 
