@@ -29,7 +29,25 @@ export PATH=$PATH:<paperfly directory>
 The core of paperfly is a bash script.
 
 # Running
-Still to do. A complete list of required and optional parameters will be added as soon as possible, as well as some example files.
+To run the program when it is in your path, use
+```
+paperfly --input_fast<q|a> <input file> --k <k>
+```
+The input file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads.
+
+Other parameters are:
+- ```--control_file <filename>``` 
+- ```--minimal_abundance <value>```
+- ```--minimal_abundance_percentile <value>```
+- ```--working_directory <path>```
+- ```--draw```
+- ```--allowed_misses <value>```
+- ```--distance_metric <hamming|levenstein>```
+- ```--window <value>```
+- ```--prominence <value>```
+- ```--peak_format <consensus|sq_count>```
+- ```--peak_min_width <value>```
+- ```--peak_max_width <value>```
 
 # Reference
 The article describing the method was not published yet, but we are working on that. Both BCALM and Jellyfish will be properly cited in the publication.
