@@ -29,7 +29,7 @@ export PATH=$PATH:<paperfly directory>
 The core of paperfly is a bash script.
 
 # Running
-Still to do. A compplete list of required and optional parameters will be added as soon as possible, as well as some example files.
+Still to do. A complete list of required and optional parameters will be added as soon as possible, as well as some example files.
 
 # Reference
 The article describing the method was not published yet, but we are working on that. Both BCALM and Jellyfish will be properly cited in the publication.
