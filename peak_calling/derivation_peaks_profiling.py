@@ -54,8 +54,8 @@ parser.add_argument("--weighting",
                     default="consensus",
                     type=str,
                     help="Select mode of peak sequence weighting. Possibilities: \n "
-                         "\t- count : for every occurence of a sequence in peak, write one.\n"
-                         "\t- once : write every sequence once, regardless of the occurence count\n"
+                         "\t- sq_count : for every occurence of a sequence in peak, write one. Its count is stored in "
+                         "the FASTA header.\n "
                          "\t- consensus : write only a consensus sequence for every peak\n"
                     )
 
@@ -69,9 +69,6 @@ max_d = args.rolling_window
 min_d_count = args.rolling_window_number
 prominence = args.prominence
 window = args.peak_max_width // 2
-
-if args.peak_min_width == -1:
-    args.peak_min_width = 1.5 * window
 
 
 def get_peak_ranges(smooth_profile, prominence=5, window=75):
@@ -161,51 +158,6 @@ def encode(base_set):
     return encoded_bases["".join(sorted(list(base_set)))]
 
 
-def print_sequences(sqs_df, ranges, outfile_handle, prev_path, min_segment_len=k, N=12, mode=args.weighting):
-    pass
-    # if mode == "consensus":
-    #     ranges_results = {}
-    #     for line in lines_iter:
-    #         count, sq = line.strip('\n').split('\t')
-    #         segments = [sq[begin:end] for begin, end in ranges if len(sq[begin:end]) > min_segment_len]
-    #         for i,segment in enumerate(segments):
-    #             if i in ranges_results:
-    #                 ranges_results[i].append(segment)
-    #             else:
-    #                 ranges_results[i] = [segment]
-    #     i = 0
-    #     for peak in ranges_results.values():
-    #         length = max(len(x.strip(' ')) for x in peak)
-    #         peak_sqs = set(x for x in peak if len(x.strip(' ')) == length)
-    #         for peak_sq in peak_sqs:
-    #             print(
-    #                 f">{''.join(random.choices(string.ascii_uppercase + string.digits, k=N))}: {prev_path} {i}",
-    #                 file=outfile_handle)
-    #             print(f"{peak_sq}", file=outfile_handle)
-    #         i+=1
-    # else:
-    #     peaks = Counter()
-    #     for line in lines_iter:
-    #         count, sq = line.strip('\n').split('\t')
-    #         for begin, end in ranges:
-    #             segment = sq[begin:end].strip(' ')
-    #             if len(segment) > min_segment_len:
-    #                 peaks[segment] += int(count)
-    #     for segment, count in peaks.items():
-    #         if mode == "count":
-    #             for i in range(count):
-    #                 print(f">{''.join(random.choices(string.ascii_uppercase + string.digits, k=N))}: {prev_path}, {i + 1}/{count}", file=outfile_handle)
-    #                 print(f"{segment}", file=outfile_handle)
-    #                 pass
-    #         elif mode == "once":
-    #             print(
-    #                 f">{''.join(random.choices(string.ascii_uppercase + string.digits, k=N))}: {prev_path}, count={count}",
-    #                 file=outfile_handle)
-    #             print(f"{segment}", file=outfile_handle)
-    #         else:
-    #             raise Exception("Mode unrecognized.")
-
-
 bases = dict(
     A=0, C=1, G=2, T=3
 )
@@ -222,9 +174,44 @@ def get_consensus(orig_profile, ranges, ident, min_size=-np.inf, max_size=np.inf
             yield sq, f"ALIGNMENT {ident} CONSENSUS PEAK: from={from_}, to={to}"
 
 
-def get_sqs_counts(sqs_df, ranges):
-    # todo
-    pass
+def get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.inf, max_size=np.inf):
+    items = sqs_df['alignment_actual'].str.split(',')  # .apply(lambda arr: np.array([float(x) for x in arr]))
+    alignments = np.vstack(items).astype(float)
+
+    i = 0
+    for _, row in sqs_df[['sq', 'str_count']].iterrows():
+        sq = row.sq
+        str_count = row.str_count
+
+        index_array = alignments[i, :] == 0
+        aligned_sq = []
+        aligned_count = []
+        j = 0
+        counts = [int(x) for x in str_count.split(',')]
+        for val in index_array:
+            if val:
+                aligned_sq.append(sq[j])
+                aligned_count.append(counts[j])
+                j += 1
+                if j >= len(sq):
+                    break
+            else:
+                aligned_sq.append('-')
+                aligned_count.append(None)
+
+        for k, range in enumerate(ranges):
+            from_,to = range
+            peak_sq = ''.join([x for x in aligned_sq[from_:to] if x != '-'])
+            counts_arr = [x for x in aligned_count[from_:to] if x is not None]
+            if len(counts_arr) == 0:
+                continue
+            count = count_agreg_func(counts_arr)
+            peak_head = f"ALIGNMENT {ident} PEAK {k} SQ {i}/{alignments.shape[0]}: from={from_}, to={to}; COUNT={count}"
+
+            if (len(peak_sq) > min_size) and (len(peak_sq) < max_size):
+                yield peak_sq, peak_head
+
+        i+=1
 
 
 handle = open(outfile, mode='w')
@@ -254,11 +241,11 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
             for sq, head in get_consensus(orig_profile, ranges, align_ident, min_size=k):
                 print(f">{head}\n{sq}", file=handle)
         elif args.weighting == 'sq_count':
-            raise NotImplementedError("To do.")
-
-            # sqs_in_current = df[df['alignment'] == align_ident]
-            # for sq, head in get_sqs_counts(sqs_in_current, ranges):
-            #     print(f">{head}\n{sq}", file=handle)
+            sqs_in_current = df[df['alignment'] == align_ident]
+            print(sqs_in_current['alignment_actual'].str.split(',').apply(len).unique())
+            for sq, head in get_sqs_counts(sqs_in_current, ranges, align_ident, min_size=k):
+                # print(f">{head}\n{sq}", file=handle)
+                print(f">{head}\n{sq}")
         else:
             raise Exception("This weighting mode does not exist. See help.")
 
