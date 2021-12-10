@@ -13,7 +13,7 @@ drawing_timeout = 20
 jellyfish_settings = "-s 1G -t 10 -C"
 
 
-def store_low_abundace_kmers(counts_csv, min_abundance, directory=None):
+def store_low_abundace_kmers(counts_csv, min_abundance, k, directory=None):
     # identify kmers present in data
     # jellyfish count -m $k -s 100M -t 10 -o mers.unitigs.$k.jf $unitigs
     if (directory is not None) and (len(directory) > 0):
@@ -24,6 +24,7 @@ def store_low_abundace_kmers(counts_csv, min_abundance, directory=None):
     counts_df = pd.read_csv(counts_csv, sep=' ', header=None)
     counts_df.columns = ['kmer', 'count']
     counts_df = counts_df[(counts_df['count'] < min_abundance) & (counts_df['count'] > 0)]
+    counts_df['count'] = counts_df['count'].map(lambda x : ','.join([str(x) for x in range(k)]))
 
     low_abund_name = f"{dir}low_abund_kmers.csv"
     counts_df.to_csv(low_abund_name, header=False, index=False, sep=';')

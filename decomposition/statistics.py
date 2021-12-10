@@ -1,9 +1,4 @@
-import networkx as nx
-from preprocessing import debruijn_fasta_to_digraph, debruijn_fasta_to_dot
 import numpy as np
-# from dag_ssc import find_edges_between, reconstruct, debruijn_join
-from matplotlib import pyplot as plt
-# from dag_ssc_igraph import debruijn_fasta_to_igraph
 import os
 from pyfastaq import sequences as pyfs
 from pyfastaq import tasks as pyftasks
@@ -27,7 +22,6 @@ def debruijn_fasta_to_igraph(fastafile):
         edges = [x for x in items if x[0:2] == 'L:']
 
         G.add_vertex(name=id_,
-                     # sq=entry.seq
                      )
 
         edges_to_add = [(id_, "%s%s" % (e.split(':')[3].replace('+', ''), e.split(':')[2])) for e in edges]
@@ -49,7 +43,9 @@ def strongly_connected_components_description(dir):
         sizes = np.array(scc.sizes())
         big_scc = set(np.where(sizes > 1)[0])
         if len(big_scc) > 0:
-            print(comp_graph, [(x, sizes[x]) for x in big_scc])
+            #print(comp_graph, [(x, sizes[x]) for x in big_scc])
+            big_sizes = [str(sizes[x]) for x in big_scc]
+            print(f"{comp_graph} has {len(big_sizes)} cycle(s) of sizes", ", ".join(big_sizes))
             connected += 1
         else:
             single += 1
@@ -101,10 +97,3 @@ def get_candidates_for_separate_learning(dir, min_node_count=100, min_forking_pa
                 else:
                     candidates.append(comp_graph)
     return candidates
-
-# strongly_connected_components_description("motif_finding-2021-05-18_152529-d=False,k=31,ma=30,sd=5,fasta=Selex2_S1_L001_R1_001.fasta/components")
-# candidates = get_candidates_for_separate_learning("test_run_k35/components")
-# with open("candidates_separate_training.txt", mode='w') as writer:
-#     for c in candidates:
-#         writer.write(f"{c}\n")
-# covered_base_number("test_run_k35/assemblies")

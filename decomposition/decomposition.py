@@ -157,6 +157,7 @@ def run_prep(args, fastapath):
     if args.low_store:
         low_abund_file = prep.store_low_abundace_kmers(jf_csv,
                                                        args.minimal_abundance,
+                                                       args.k,
                                                        directory=args.working_dir
                                                        )
         print(f'lowly abundant k-mers stored in {low_abund_file}')

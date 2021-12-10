@@ -57,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       DRAW="--draw"
       shift # past argument
       ;;
+    --exclude_low)
+      LOW="--no_store_low"
+      shift # past argument
+      ;;
 
 #######################################
 #   CLUSTERING PARAMS
@@ -163,6 +167,7 @@ echo -e '\t'k: $K
 echo -e '\t'min. abundance: $ABU
 echo -e '\t'work. dir.: $WORKING_DIR
 echo -e '\t'control: $CONTROL
+echo -e '\t'store_low: $LOW
 
 echo CLUSTERING
 echo -e '\t'draw: $MISS
@@ -176,7 +181,7 @@ echo -e '\t'min peak width: $MINWIDTH
 echo -e '\t'max peak width: $MAXWIDTH
 
 echo RUNNING DECOMPOSITION...
-$PYTHON $DECOMPOSITION --k $K $INPUT $ABU $DRAW --working_dir $WORKING_DIR $CONTROL
+$PYTHON $DECOMPOSITION --k $K $INPUT $ABU $DRAW --working_dir $WORKING_DIR $CONTROL $LOW
 if [ $? -eq 0 ]
 then
 	echo DECOMPOSITION DONE
@@ -184,6 +189,10 @@ else
 	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
+
+echo Decomposition cleanup...
+rm $WORKING_DIR/*.tmp $WORKING_DIR/*.jf $WORKING_DIR/*.fa $WORKING_DIR/*.counts.csv $WORKING_DIR/*.fasta
+echo Done.
 
 echo RUNNING PSEUDOASSEMBLY
 ./$ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/components --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
@@ -214,6 +223,14 @@ else
 	echo clustering alignment was unsuccesful, exiting
 	exit 1
 fi
+
+# if lowly abundant kmers are present, add them to <aligned>
+if [ -z "$LOW" ] # if exclude_low switch is off
+then
+	echo adding lowly abundant k-mers to input for clustering...
+	cat $WORKING_DIR/low_abund_kmers.csv >> $WORKING_DIR/aligned
+fi
+
 
 echo RUNNING PEAK CALLING
 $PYTHON $PEAKCALLING --k $K --aligned $WORKING_DIR/aligned_profiles --overview $WORKING_DIR/aligned_overview.csv --output_filename $WORKING_DIR/peaks.fasta $WINDOW $PROMINENCE $FORMAT $MINWIDTH $MAXWIDTH
