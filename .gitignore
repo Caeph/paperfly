@@ -7,8 +7,8 @@ venv/
 output_paperfly*
 *.h5
 
-.run/
-.idea/
+*.run/*
+*.idea/*
 
 
 # the rest of the .gitignore was downloaded from https://gist.github.com/takekazuomi/109558
