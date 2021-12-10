@@ -58,6 +58,11 @@ parser.add_argument("--draw",
                          "Takes time, but can be useful for visual analysis of the component. Optional. "
                          "Has a time threshold, so extra large component may not be drawn.",
                     )
+parser.add_argument("--no_store_low",
+                    dest='low_store',
+                    action='store_false',
+                    help="Timesaving option. Skip saving low abundant k-mers.",
+                    )
 parser.add_argument("--control_filename",
                     default=None,
                     type=str,
@@ -118,6 +123,7 @@ def get_fasta_from_fastq(fastqfile, args):
 
     return path_to_fasta
 
+
 def run_prep(args, fastapath):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
 
@@ -148,6 +154,13 @@ def run_prep(args, fastapath):
         merged = merged.drop(columns=['count', 'count_control'])
         merged.to_csv(jf_csv, header=False, index=False, sep=' ')
 
+    if args.low_store:
+        low_abund_file = prep.store_low_abundace_kmers(jf_csv,
+                                                       args.minimal_abundance,
+                                                       directory=args.working_dir
+                                                       )
+        print(f'lowly abundant k-mers stored in {low_abund_file}')
+
     linked_unitigs = prep.link_jellyfish_counts(expanded, jf_csv, args.k)
     filtered = prep.filter_abundance(linked_unitigs, args.minimal_abundance, args.k)
     if args.unwrap:
@@ -160,6 +173,7 @@ def run_prep(args, fastapath):
         prep.draw_components(compdir, args.minimal_abundance, canonical=args.canonical)
 
     return compdir
+
 
 def main(args):
     # check if input exists
@@ -184,7 +198,7 @@ def main(args):
         )
         print(f"The working dir was set as {args.working_dir}")
 
-    args.canonical = False  # assemblation is difficult
+    args.canonical = False
     os.makedirs(args.working_dir, exist_ok=False)
     #
     # unzip fastq, convert to fasta
@@ -207,6 +221,8 @@ def main(args):
     # # expand canonical, divide to (weakly connected) components, optionally draw
     components_path = run_prep(args, fastapath)
     strongly_connected_components_description(components_path)
+
+    # todo cleanup
 
 
 if __name__ == '__main__':

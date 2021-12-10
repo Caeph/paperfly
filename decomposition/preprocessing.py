@@ -5,8 +5,6 @@ import pyfastaq.sequences as pyfs
 import shutil
 import os
 import numpy as np
-from pyfastaq.tasks import count_sequences
-from collections import Counter
 
 bcalm_path = "bcalm"
 jellyfish_path = "jellyfish"
@@ -15,7 +13,25 @@ drawing_timeout = 20
 jellyfish_settings = "-s 1G -t 10 -C"
 
 
+def store_low_abundace_kmers(counts_csv, min_abundance, directory=None):
+    # identify kmers present in data
+    # jellyfish count -m $k -s 100M -t 10 -o mers.unitigs.$k.jf $unitigs
+    if (directory is not None) and (len(directory) > 0):
+        dir = directory + '/'
+    else:
+        dir = ""
+
+    counts_df = pd.read_csv(counts_csv, sep=' ', header=None)
+    counts_df.columns = ['kmer', 'count']
+    counts_df = counts_df[(counts_df['count'] < min_abundance) & (counts_df['count'] > 0)]
+
+    low_abund_name = f"{dir}low_abund_kmers.csv"
+    counts_df.to_csv(low_abund_name, header=False, index=False, sep=';')
+    return low_abund_name
+
+
 def get_control_counts(control, k, flag="unitigs", directory=None):
+    print(f"running jellyfish on {control}")
     if (directory is not None) and (len(directory) > 0):
         dir = directory + '/'
     else:
@@ -190,7 +206,8 @@ def divide_to_components(filtered_unitigs, comp_dir="components", canonical=Fals
         for node in comp:
             if node in dict_:
                 print("DUPLICATION!", node)
-            # nemelo by, weakly connected components by mely byt disjunktni
+                raise Exception("Node duplication.")
+            # should not happen, weakly connected components should be disjuct
             dict_[node] = i
         i += 1
 
@@ -201,7 +218,7 @@ def divide_to_components(filtered_unitigs, comp_dir="components", canonical=Fals
     ##########################################################################################
     # write components into respective files
 
-    os.makedirs(comp_dir, exist_ok=False)  # appendovani - tohle pomaha proti kupeni info ve filech z ruznych behu
+    os.makedirs(comp_dir, exist_ok=False)
     print("Directory now exists.")
 
     unitigs = pyfs.file_reader(filtered_unitigs)
@@ -239,7 +256,7 @@ def replace_zero_index(unitigs):
     for entry in fasta:
         items = entry.id.split(' ')
         id_ = int(items[0])
-        new_id = id_ + 1  # takhle tam nikdy nebude 0
+        new_id = id_ + 1  # zero cannot be an id
         edges = [x for x in items[6:] if len(x) > 0]
         # print('edges', edges)
 
