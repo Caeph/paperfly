@@ -244,8 +244,8 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
             sqs_in_current = df[df['alignment'] == align_ident]
             print(sqs_in_current['alignment_actual'].str.split(',').apply(len).unique())
             for sq, head in get_sqs_counts(sqs_in_current, ranges, align_ident, min_size=k):
-                # print(f">{head}\n{sq}", file=handle)
-                print(f">{head}\n{sq}")
+                print(f">{head}\n{sq}", file=handle)
+                # print(f">{head}\n{sq}")
         else:
             raise Exception("This weighting mode does not exist. See help.")
 
