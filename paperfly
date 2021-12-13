@@ -7,7 +7,7 @@ DECOMPOSITION="decomposition/decomposition.py"
 ASSEMBLER="pseudoassembly/SamplerEulerianEfficient"
 EXACTMATCHING="alignment/exact_match/Aligner3"
 CLUSTERING_LEV="alignment/profiles/calculate_profiles.py"
-CLUSTERING_HAM="alignment/profiles/calculate_profiles_hamming.py"
+# CLUSTERING_HAM="alignment/profiles/calculate_profiles_hamming.py"
 PEAKCALLING="peak_calling/derivation_peaks_profiling.py"
 
 MISS=1
@@ -69,11 +69,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
-    --distance_metric)
-      DST_METRIC="$2"
-      shift # past argument
-      shift # past value
-      ;;
+#    --distance_metric)
+#      DST_METRIC="$2"
+#      shift # past argument
+#      shift # past value
+#      ;;
       
 #######################################
 #   PEAK CALLING PARAMS
@@ -151,12 +151,12 @@ fi
 if [ $DST_METRIC = "levenstein" ]
 then
 	CLUSTERING_SCRIPT="$CLUSTERING_LEV"
-elif [ $DST_METRIC = "hamming" ]
-then
-	CLUSTERING_SCRIPT="$CLUSTERING_HAM"
-else
-	echo unknown distance metric, exiting
-	exit 1
+# elif [ $DST_METRIC = "hamming" ]
+# then
+#	CLUSTERING_SCRIPT="$CLUSTERING_HAM"
+# else
+#	echo unknown distance metric, exiting
+#	exit 1
 fi
 
 echo Parameter recapitulation:
