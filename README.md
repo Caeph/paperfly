@@ -33,7 +33,7 @@ To run the program when it is in your path, use
 ```
 paperfly --input_fast<q|a> <input file> --k <k>
 ```
-The input file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads.
+The input file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads. We recommend you start with k=+-30.
 
 Other parameters are:
 - ```--control_file <filename>```: name of the control sequencing file. Can be in fasta, fastq or gzipped fastq format. If the file format is fastq or gzipped fastq, it must be indicated by file suffix: control.fastq, control.fastq.gz. The k-mers in control will be substracted from the k-mers in the input file before abundancy filtering.
