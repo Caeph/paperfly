@@ -3,6 +3,9 @@ import pandas as pd
 import os
 from scipy.signal import find_peaks
 import argparse
+from matplotlib import pyplot as plt
+import seaborn as sns
+import matplotlib.patches as patches
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--aligned",
@@ -58,6 +61,11 @@ parser.add_argument("--weighting",
                          "the FASTA header.\n "
                          "\t- consensus : write only a consensus sequence for every peak\n"
                     )
+parser.add_argument("--draw",
+                    action="store_true",
+                    dest='draw',
+                    help="Draw the profiles."
+                   )
 
 args = parser.parse_args([] if "__file__" not in globals() else None)
 
@@ -214,12 +222,54 @@ def get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.
         i+=1
 
 
+def draw_peaks_profile(profile, smooth_profile, ranges, output_file):
+    fig, ax = plt.subplots(1, 1, figsize=(3.5, 2))
+    plt.subplots_adjust(bottom=0.2)
+
+    sns.lineplot(
+        x=np.arange(0, profile.shape[0]) - max_d // 2 + window // 2,
+        y=profile,
+        ax=ax,
+        color='xkcd:cyan',
+        label="original"
+    )
+    ax.set_xlabel("position in alignment", fontsize=8)
+    ax.set_ylabel("enrichment", fontsize=8)
+
+    sns.lineplot(
+        x=np.arange(0, smooth_profile.shape[0]),
+        y=smooth_profile,
+        ax=ax,
+        label="smoothed",
+        color='xkcd:wine',
+    )
+
+    plt.legend(loc='upper left', fontsize=8)
+
+    sns.despine(offset=1, trim=False)
+
+    height = profile.max() + 10
+    for begin, end in ranges:
+        rect = patches.Rectangle((begin, 0), end - begin, height,
+                                 linewidth=1, edgecolor=None, facecolor='xkcd:pale lavender')
+        ax.add_patch(rect)
+
+    plt.savefig(output_file, dpi=300)
+    plt.close(fig)
+
+
 handle = open(outfile, mode='w')
 
 from progress.bar import FillingCirclesBar as progresscounter
 
 files = os.listdir(directory)
 df = pd.read_csv(args.overview)
+
+if args.draw:
+    drawing_path = '.'.join(args.output_filename.split('.')[:-1])+"_plots"
+    os.mkdir(drawing_path)
+else:
+    drawing_path = None
 
 with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
     for file in files:
@@ -232,8 +282,11 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
         ranges = get_peak_ranges(smooth_profile, prominence=prominence, window=window)
 
         if len(ranges) == 0:
-            counter.next()
+            counter.next()  # we are not drawing alignments without a peak
             continue
+
+        if args.draw:
+            draw_peaks_profile(profile, smooth_profile, ranges, os.path.join(drawing_path, file+".png"))
 
         align_ident = int(file.split('.')[0])
 

@@ -170,7 +170,7 @@ echo -e '\t'control: $CONTROL
 echo -e '\t'store_low: $LOW
 
 echo CLUSTERING
-echo -e '\t'draw: $MISS
+echo -e '\t'allowed_misses: $MISS
 echo -e '\t'clustering script: $CLUSTERING_SCRIPT
 
 echo PEAK CALLING
@@ -233,7 +233,7 @@ fi
 
 
 echo RUNNING PEAK CALLING
-$PYTHON $PEAKCALLING --k $K --aligned $WORKING_DIR/aligned_profiles --overview $WORKING_DIR/aligned_overview.csv --output_filename $WORKING_DIR/peaks.fasta $WINDOW $PROMINENCE $FORMAT $MINWIDTH $MAXWIDTH
+$PYTHON $PEAKCALLING --k $K --aligned $WORKING_DIR/aligned_profiles --overview $WORKING_DIR/aligned_overview.csv --output_filename $WORKING_DIR/peaks.fasta $WINDOW $PROMINENCE $FORMAT $MINWIDTH $MAXWIDTH $DRAW
 if [ $? -eq 0 ]
 then
 	echo PEAK CALLING DONE
