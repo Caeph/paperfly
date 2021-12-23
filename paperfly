@@ -195,7 +195,7 @@ rm $WORKING_DIR/*.tmp $WORKING_DIR/*.jf $WORKING_DIR/*.fa $WORKING_DIR/*.counts.
 echo Done.
 
 echo RUNNING PSEUDOASSEMBLY
-./$ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/components --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
+mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/components --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
 if [ $? -eq 0 ]
 then
 	echo PSEUDOASSEMBLY DONE
@@ -205,7 +205,7 @@ else
 fi
 
 echo RUNNING EXACT MATCH MAPPING
-./$EXACTMATCHING/bin/Release/Aligner3.exe $WORKING_DIR/assemblies $WORKING_DIR/aligned $K $MISS
+mono $EXACTMATCHING/bin/Release/Aligner3.exe $WORKING_DIR/assemblies $WORKING_DIR/aligned $K $MISS
 if [ $? -eq 0 ]
 then
 	echo EXACT MATCH MAPPING DONE
