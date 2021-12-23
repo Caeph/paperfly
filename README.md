@@ -28,6 +28,9 @@ export PATH=$PATH:<paperfly directory>
 
 The core of paperfly is a bash script.
 
+A Dockerfile is also available. If you are using it, please note that the recommended RAM is at least 8 GB. 
+I also recommend you check it out if you are using Ubuntu 20.04, as you could run into problems when installing mono and msbuild.
+
 # Running
 To run the program when it is in your path, use
 ```
