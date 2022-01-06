@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
 #######################################
 #   PEAK CALLING PARAMS
     --window)
-      WINDOW="--window $2"
+      WINDOW="--rolling_window $2"
       shift # past argument
       shift # past value
       ;;
@@ -190,9 +190,9 @@ else
 	exit 1
 fi
 
-echo Decomposition cleanup...
-rm $WORKING_DIR/*.tmp $WORKING_DIR/*.jf $WORKING_DIR/*.fa $WORKING_DIR/*.counts.csv $WORKING_DIR/*.fasta
-echo Done.
+# echo Decomposition cleanup...
+# rm $WORKING_DIR/*.tmp $WORKING_DIR/*.jf $WORKING_DIR/*.fa $WORKING_DIR/*.counts.csv $WORKING_DIR/*.fasta
+# echo Done.
 
 echo RUNNING PSEUDOASSEMBLY
 mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/components --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false

@@ -24,7 +24,7 @@ def store_low_abundace_kmers(counts_csv, min_abundance, k, directory=None):
     counts_df = pd.read_csv(counts_csv, sep=' ', header=None)
     counts_df.columns = ['kmer', 'count']
     counts_df = counts_df[(counts_df['count'] < min_abundance) & (counts_df['count'] > 0)]
-    counts_df['count'] = counts_df['count'].map(lambda x : ','.join([str(1) for x in range(k)]))
+    counts_df['count'] = counts_df['count'].map(lambda x : ','.join([str(x) for item in range(k)]))
 
     low_abund_name = f"{dir}low_abund_kmers.csv"
     counts_df.to_csv(low_abund_name, header=False, index=False, sep=';')
