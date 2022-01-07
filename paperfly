@@ -38,6 +38,10 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    --omit_control)
+      CONTROL="--omit_control"
+      shift # past argument
+      ;;
     --minimal_abundance)
       MINIMAL_ABUNDANCE="$2"
       shift # past argument
@@ -69,11 +73,6 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
-#    --distance_metric)
-#      DST_METRIC="$2"
-#      shift # past argument
-#      shift # past value
-#      ;;
       
 #######################################
 #   PEAK CALLING PARAMS
@@ -129,6 +128,17 @@ if [ -z "$K" ]
 then
 	echo no k given, exiting...
 	exit 1
+fi
+
+# INPUT: the user must either specify control file or explicitly set --omit_control
+if [ -z "$CONTROL" ]
+then
+	echo no control given, either provide a control file "(set --control_file <filename>)" or set --omit_control
+	exit 1
+elif [ $CONTROL = "--omit_control" ]
+then
+	echo omitting control...
+	CONTROL=""
 fi
 
 # INPUT: working_directory ...

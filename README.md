@@ -34,12 +34,13 @@ I also recommend you check it out if you are using Ubuntu 20.04, as you could ru
 # Running
 To run the program when it is in your path, use
 ```
-paperfly --input_fast<q|a> <input file> --k <k>
+paperfly --input_fast<q|a> <input filename> --k <k> --control_file <control filename>
 ```
-The input file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads. We recommend you start with k=+-30.
+The input and the control file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads. We recommend you start with k=+-30.
+The order of the parameters is not fixed.
 
 Other parameters are:
-- ```--control_file <filename>```: name of the control sequencing file. Can be in fasta, fastq or gzipped fastq format. If the file format is fastq or gzipped fastq, it must be indicated by file suffix: control.fastq, control.fastq.gz. The k-mers in control will be substracted from the k-mers in the input file before abundancy filtering.
+- ```--omit_control```: logical switch. If you use this switch instead of specifying a control file, the program will not perform any control normalization.
 - ```--minimal_abundance <value>```: absolute number denoting the minimal abundance of a k-mer. 
 - ```--minimal_abundance_percentile <value>```: percentile of k-mer abundancy to use as minimal abundance threshold. If absolute value is defined, this parameter is not used. Default: 75.
 - ```--working_directory <path>```: name of the directory with results. Default: "output_paperfly_datetime".
