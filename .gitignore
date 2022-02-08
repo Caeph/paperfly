@@ -1,3 +1,6 @@
+# generated script with absolute paths
+paperfly
+
 # python virtual environment
 venv/
 *__pycache__/

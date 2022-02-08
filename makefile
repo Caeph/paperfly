@@ -1,4 +1,10 @@
-all: build makevenv	
+all: build makevenv construct
+mkfile_path := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+to_set_path ::= $(subst /,\/,${mkfile_path})
+
+construct:
+	@cat protopaperfly | sed 's#XXXXX#${to_set_path}#g' >paperfly
+	@chmod +x paperfly
 
 makevenv:
 	python3 -m venv venv
