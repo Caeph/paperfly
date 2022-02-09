@@ -124,11 +124,11 @@ def get_fasta_from_fastq(fastqfile, args):
     return path_to_fasta
 
 
-def run_prep(args, fastapath):
+def run_prep(args, fastapath, scaling_coef=0.9):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
 
     unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance * 2)
-    os.rename(unitigs, base_path + ".unitigs.fa")
+    shutil.move(unitigs, base_path + ".unitigs.fa")
     unitigs = base_path + ".unitigs.fa"
 
     moved = prep.replace_zero_index(unitigs)
@@ -142,10 +142,21 @@ def run_prep(args, fastapath):
 
     if args.control_filename is not None:
         control_counts_filename = prep.get_control_counts(args.control_filename, args.k, directory=args.working_dir)
+
         control_counts = pd.read_csv(control_counts_filename, sep=' ', header=None)
         control_counts.columns = ['kmer', 'count']
+
         current_counts = pd.read_csv(jf_csv, sep=' ', header=None)
         current_counts.columns = ['kmer', 'count']
+
+        total_current = current_counts['count'].sum()
+        total_control = control_counts['count'].sum()
+
+        # scale control to match the magnitudes in current counts
+        scale = total_current / total_control
+        scale *= scaling_coef
+        control_counts['count'] = control_counts['count'] * scale
+        control_counts['count'] = control_counts['count'].round()
 
         merged = pd.merge(current_counts, control_counts, how='left', on='kmer', suffixes=['', '_control'])
         merged = merged.fillna(0)

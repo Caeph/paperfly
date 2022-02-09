@@ -39,11 +39,12 @@ def get_control_counts(control, k, flag="unitigs", directory=None):
         dir = ""
 
     control_mers = f"{dir}control.{k}.fa"
+    kmers_in_input_file = f"{dir}mers.unitigs.{k}.fa"
 
     # jellyfish count -m $k -s 1G -t 10 -o control_counts.tmp --if mers.unitigs.$k.fa $control
     process = subprocess.run(
         [
-            f"{jellyfish_path} count -m {k} -s 1G -t 10 -o {control_mers}.tmp {control}"],
+            f"{jellyfish_path} count -m {k} -s 1G -t 10 -o {control_mers}.tmp --if {kmers_in_input_file} {control}"],
         shell=True)
     evaluate_process(process)
 
