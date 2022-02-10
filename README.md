@@ -46,7 +46,7 @@ Other parameters are:
 - ```--working_directory <path>```: name of the directory with results. Default: "output_paperfly_datetime".
 - ```--draw```: logical switch. If used, the layout of the weakly connected components is drawn. There is a timeout threshold, therefore, too big components may not be drawn.
 - ```--exclude_low```: logical switch. If used, the insufficiently abundant k-mers will be completely deleted. Otherwise, these k-mers are included in the clustering alignment step.
-- ```--allowed_misses <value>```: distance threshold for clustering relative to k ("how many errors can be in a k-mer for two sequences to be mapped together"). Default: 1.
+- ```--allowed_misses <value>```: distance threshold for clustering relative to k ("how many errors can be in a k-mer for two sequences to be mapped together"). Default: 1. On human data, we got much better results with setting 0.01.
 - ```--window <value>```: rolling window width for curve smoothing during peak finding. Default: 100.
 - ```--prominence <value>```: minimal prominence of a peak. Default: 20.
 - ```--peak_format <consensus|sq_count>```: whether to print only a consensus sequence of a peak (default) or to print all the sequences with their count.
