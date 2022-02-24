@@ -19,7 +19,7 @@ while [[ $# -gt 0 ]]; do
 
   case $key in
     --help)
-      cat README.md
+      cat XXXXXREADME.md
       exit
       ;;
     --input_fastq)
@@ -124,7 +124,7 @@ then
 	INPUT=$(echo --input_fastq $FASTQ)
 else
 	echo no input file given, exiting...
-	cat README.md
+	cat XXXXXREADME.md
 	exit 1
 fi
 
