@@ -18,6 +18,10 @@ while [[ $# -gt 0 ]]; do
   key="$1"
 
   case $key in
+    --help)
+      cat README.md
+      exit
+      ;;
     --input_fastq)
       FASTQ="$2"
       shift # past argument
@@ -120,6 +124,7 @@ then
 	INPUT=$(echo --input_fastq $FASTQ)
 else
 	echo no input file given, exiting...
+	cat README.md
 	exit 1
 fi
 
