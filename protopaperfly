@@ -135,7 +135,7 @@ if [ -z "$CONTROL" ]
 then
 	echo no control given, either provide a control file "(set --control_file <filename>)" or set --omit_control
 	exit 1
-elif [ $CONTROL = "--omit_control" ]
+elif [ $CONTROL -eq "--omit_control" ]
 then
 	echo omitting control...
 	CONTROL=""

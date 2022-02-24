@@ -65,7 +65,7 @@ parser.add_argument("--draw",
                     action="store_true",
                     dest='draw',
                     help="Draw the profiles."
-                   )
+                    )
 
 args = parser.parse_args([] if "__file__" not in globals() else None)
 
@@ -91,13 +91,13 @@ def get_peak_ranges(smooth_profile, prominence=5, window=75):
         return ranges
 
     if len(neg_peaks) == 0:
-        return [[np.fmax(peak - window, 0), np.fmin(len(profile), peak + window)] for peak in peaks
+        return [[np.fmax(peak - window, 0), np.fmin(len(profile), peak + window), prom] for peak, prom in zip(peaks, props["prominences"])
                 if np.fmin(len(profile), peak + window) - np.fmax(peak - window, 0) > 1.5 * window]
 
-    for peak in peaks:
+    for peak, prom in zip(peaks, props["prominences"]):
         if np.fmin(len(profile), peak + window) - np.fmax(peak - window, 0) <= args.peak_min_width:
             continue
-        prim_range = [np.fmax(peak - window, 0), np.fmin(len(profile), peak + window)]
+        prim_range = [np.fmax(peak - window, 0), np.fmin(len(profile), peak + window), prom]
 
         if next_neg_peak >= len(neg_peaks):
             ranges.append(prim_range)
@@ -130,7 +130,7 @@ def get_peak_ranges(smooth_profile, prominence=5, window=75):
         b = ranges[i + 1]
 
         if a[1] >= b[0]:
-            merged_ranges.append([a[0], b[1]])
+            merged_ranges.append([a[0], b[1], max(a[2], b[2])])
             skipnext = True
         else:
             merged_ranges.append(a)
@@ -174,12 +174,12 @@ rev_bases = {v: k for k, v in bases.items()}
 
 
 def get_consensus(orig_profile, ranges, ident, min_size=-np.inf, max_size=np.inf):
-    for from_, to in ranges:
+    for from_, to, prom in ranges:
         current = orig_profile[from_:to, :]
         sq = "".join([rev_bases[x] for x in np.argmax(current, axis=1) if rev_bases[x] != '-']).strip(' ')
 
         if (len(sq) > min_size) and (len(sq) < max_size):
-            yield sq, f"ALIGNMENT {ident} CONSENSUS PEAK: from={from_}, to={to}"
+            yield sq, f"ALIGNMENT {ident} CONSENSUS PEAK: from={from_}, to={to}, prominence={np.round(prom).astype(int)}"
 
 
 def get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.inf, max_size=np.inf):
@@ -208,18 +208,18 @@ def get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.
                 aligned_count.append(None)
 
         for k, range in enumerate(ranges):
-            from_,to = range
+            from_, to, prom = range
             peak_sq = ''.join([x for x in aligned_sq[from_:to] if x != '-'])
             counts_arr = [x for x in aligned_count[from_:to] if x is not None]
             if len(counts_arr) == 0:
                 continue
             count = count_agreg_func(counts_arr)
-            peak_head = f"ALIGNMENT {ident} PEAK {k} SQ {i}/{alignments.shape[0]}: from={from_}, to={to}; COUNT={count}"
+            peak_head = f"ALIGNMENT {ident} PEAK {k} SQ {i}/{alignments.shape[0]}: from={from_}, to={to}; COUNT={count}, prominence={np.round(prom).astype(int)}"
 
             if (len(peak_sq) > min_size) and (len(peak_sq) < max_size):
                 yield peak_sq, peak_head
 
-        i+=1
+        i += 1
 
 
 def draw_peaks_profile(profile, smooth_profile, ranges, output_file):
@@ -266,7 +266,7 @@ files = os.listdir(directory)
 df = pd.read_csv(args.overview)
 
 if args.draw:
-    drawing_path = '.'.join(args.output_filename.split('.')[:-1])+"_plots"
+    drawing_path = '.'.join(args.output_filename.split('.')[:-1]) + "_plots"
     os.mkdir(drawing_path)
 else:
     drawing_path = None
@@ -286,7 +286,7 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
             continue
 
         if args.draw:
-            draw_peaks_profile(profile, smooth_profile, ranges, os.path.join(drawing_path, file+".png"))
+            draw_peaks_profile(profile, smooth_profile, ranges, os.path.join(drawing_path, file + ".png"))
 
         align_ident = int(file.split('.')[0])
 
