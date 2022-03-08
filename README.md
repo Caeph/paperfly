@@ -49,7 +49,7 @@ Other parameters are:
 - ```--allowed_misses <value>```: distance threshold for clustering relative to k ("how many errors can be in a k-mer for two sequences to be mapped together"). Default: 1. On human data, we got much better results with setting 0.01.
 - ```--window <value>```: rolling window width for curve smoothing during peak finding. Default: 100.
 - ```--prominence <value>```: minimal prominence of a peak. Default: 20.
-- ```--peak_format <consensus|sq_count>```: whether to print only a consensus sequence of a peak (default) or to print all the sequences with their count.
+- ```--peak_format <consensus|sq_count|meme>```: whether to print only a consensus sequence of a peak (default), to print all the sequences with their count, or to print a single sequence for every occurence (recommended if you plan to follow up with MEME).
 - ```--peak_min_width <value>```: minimal peak width. Default: k/2.
 - ```--peak_max_width <value>```: maximal peak width. Default: infinity.
 

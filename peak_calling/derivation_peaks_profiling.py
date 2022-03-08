@@ -6,6 +6,7 @@ import argparse
 from matplotlib import pyplot as plt
 import seaborn as sns
 import matplotlib.patches as patches
+import random, string
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--aligned",
@@ -60,6 +61,7 @@ parser.add_argument("--weighting",
                          "\t- sq_count : for every occurence of a sequence in peak, write one. Its count is stored in "
                          "the FASTA header.\n "
                          "\t- consensus : write only a consensus sequence for every peak\n"
+                         "\t- meme : write all captured sequences in a peak to use as input for meme-chip or meme\n"
                     )
 parser.add_argument("--draw",
                     action="store_true",
@@ -91,7 +93,8 @@ def get_peak_ranges(smooth_profile, prominence=5, window=75):
         return ranges
 
     if len(neg_peaks) == 0:
-        return [[np.fmax(peak - window, 0), np.fmin(len(profile), peak + window), prom] for peak, prom in zip(peaks, props["prominences"])
+        return [[np.fmax(peak - window, 0), np.fmin(len(profile), peak + window), prom] for peak, prom in
+                zip(peaks, props["prominences"])
                 if np.fmin(len(profile), peak + window) - np.fmax(peak - window, 0) > 1.5 * window]
 
     for peak, prom in zip(peaks, props["prominences"]):
@@ -222,6 +225,27 @@ def get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.
         i += 1
 
 
+def randomword(length):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(length))
+
+
+def get_meme_like_input(sqs_df, ranges, ident, count_agreg_func=np.min, min_size=-np.inf, max_size=np.inf):
+    candidates = get_sqs_counts(sqs_df, ranges, ident, count_agreg_func=count_agreg_func, min_size=min_size,
+                                max_size=max_size)
+    for sq, head in candidates:
+        items = head.split(' ')
+        count = items[-1]
+        alignmentID = items[1]
+        peakID = items[3]
+        count = int(count.split('=')[1])
+
+        i = 1
+        for _ in range(count):
+            yield sq, f">{randomword(8)} {alignmentID}_{peakID}_{i}, {i}/{count}"
+            i += 1
+
+
 def draw_peaks_profile(profile, smooth_profile, ranges, output_file):
     fig, ax = plt.subplots(1, 1, figsize=(3.5, 2))
     plt.subplots_adjust(bottom=0.2)
@@ -296,6 +320,10 @@ with progresscounter("Peak calculation: ", max=len(files) - 1) as counter:
         elif args.weighting == 'sq_count':
             sqs_in_current = df[df['alignment'] == align_ident]
             for sq, head in get_sqs_counts(sqs_in_current, ranges, align_ident, min_size=k):
+                print(f">{head}\n{sq}", file=handle)
+        elif args.weighting == 'meme':
+            sqs_in_current = df[df['alignment'] == align_ident]
+            for sq, head in get_meme_like_input(sqs_in_current, ranges, align_ident, min_size=k):
                 print(f">{head}\n{sq}", file=handle)
         else:
             raise Exception("This weighting mode does not exist. See help.")
