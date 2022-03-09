@@ -123,22 +123,43 @@ def get_peak_ranges(smooth_profile, prominence=5, window=75):
         ranges.append(prim_range)
 
     merged_ranges = []
-    skipnext = False
-    for i in range(len(ranges) - 1):
-        if skipnext:
-            skipnext = False
+    last_range = None
+    for i,range in enumerate(ranges):
+        if last_range is None:
+            last_range = range
             continue
+        a = last_range
+        b = range
 
-        a = ranges[i]
-        b = ranges[i + 1]
+        if a[1] >= b[0]: # ranges overlap
+            last_range = [a[0], b[1], max(a[2], b[2])]
+        else: # ranges dont overlap
+            merged_ranges.append(last_range)
+            last_range = range
 
-        if a[1] >= b[0]:
-            merged_ranges.append([a[0], b[1], max(a[2], b[2])])
-            skipnext = True
-        else:
-            merged_ranges.append(a)
-            if i + 1 == len(ranges) - 1:
-                merged_ranges.append(b)
+    if last_range is not None:
+        merged_ranges.append(last_range)
+
+
+    # skipnext = False
+    # for i in range(len(ranges) - 1):
+    #     if skipnext:
+    #         skipnext = False
+    #         continue
+    #
+    #     a = ranges[i]
+    #     b = ranges[i + 1]
+    #
+    #     if a[1] >= b[0]:
+    #         merged_ranges.append([a[0], b[1], max(a[2], b[2])])
+    #         skipnext = True
+    #     else:
+    #         merged_ranges.append(a)
+    #         if i + 1 == len(ranges) - 1:
+    #             merged_ranges.append(b)
+
+    # now deal with overlapping ranges -- into one
+
     return merged_ranges
 
 
