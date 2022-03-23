@@ -3,7 +3,7 @@
 The PseudoAssembly based Peak Finder (PAPerFly) assembles the sequencing reads seen during a ChIP-seq or similar experiment. 
 This repository is still under construction and some additions will be made to the code.
 
-[![DOI](https://zenodo.org/badge/436188691.svg)](https://zenodo.org/badge/latestdoi/436188691)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6379332.svg)](https://doi.org/10.5281/zenodo.6379332)
 
 
 # Requirements
