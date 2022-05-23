@@ -216,17 +216,22 @@ for cluster, cluster_df in df_group.groupby(by='cluster'):
 start = time.time()
 
 # print(df.groupby(by='length').get_group(longest))
-#print("running on shorter")
+# print("running on shorter")
+
 with Bar("Processing length groups...", max=len(unique_lengths) - 1) as bar:
     for length in unique_lengths[1:]:
         bar.next()
         df_group = groups.get_group(length).copy()
 
         def getDistanceAndAlignment(sq):
-            maxval = math.ceil(threshold * len(sq))
+            # this is a fallback, it should not happen
+            maxval = np.floor(threshold * len(sq))
 
             min = np.inf
             min_target = None
+
+            if maxval < 1:
+                return min,min_target
 
             for target in against:
                 align_res = edlib.align(sq, target.repre_sq, mode='HW', task='distance', k=maxval)
@@ -243,31 +248,47 @@ with Bar("Processing length groups...", max=len(unique_lengths) - 1) as bar:
 
             return min, min_target
 
-        # try align
-        with Pool(pools) as pool:
-            result = pool.map(getDistanceAndAlignment, df_group['sq'])
-        df_group['aligned'] = result
+        x = length * threshold
+        if length * threshold >= 1:
+            # try align
+            with Pool(pools) as pool:
+                result = pool.map(getDistanceAndAlignment, df_group['sq'])
+            df_group['aligned'] = result
 
-        # add aligned to profiles
-        aligned = df_group[df_group['aligned'] != (np.inf, None)]
-        for index, row in aligned.iterrows():
-            to = alignments[row['aligned'][1]]
-            align_res = edlib.align(row.sq, to.repre_sq, mode='HW', task='path')
-            nice = edlib.getNiceAlignment(align_res, row.sq, to.repre_sq)
-            to.add_sequence(row.sq, row['count'], nice, index)
-            # df.loc[df['sq'] == row.sq, 'alignment'] = to.ident
+            # add aligned to profiles
+            aligned = df_group[df_group['aligned'] != (np.inf, None)]
+            for index, row in aligned.iterrows():
+                to = alignments[row['aligned'][1]]
+                align_res = edlib.align(row.sq, to.repre_sq, mode='HW', task='path')
+                nice = edlib.getNiceAlignment(align_res, row.sq, to.repre_sq)
+                to.add_sequence(row.sq, row['count'], nice, index)
+                # df.loc[df['sq'] == row.sq, 'alignment'] = to.ident
 
-        # cluster unaligned, add to against
-        unaligned = df_group[df_group['aligned'] == (np.inf, None)].copy()
-        clusters = cluster_group(unaligned, length)
-        unaligned['cluster'] = clusters
+            # cluster unaligned, add to against
+            unaligned = df_group[df_group['aligned'] == (np.inf, None)].copy()
+            clusters = cluster_group(unaligned, length)
+            unaligned['cluster'] = clusters
 
-        for cluster, cluster_df in unaligned.groupby(by='cluster'):
-            alignment = AlignmentProfile(length, cluster_df, global_alignment_ident_no)
-            alignments[global_alignment_ident_no] = alignment
-            global_alignment_ident_no += 1
-            # df.loc[df['sq'].isin(cluster_df['sq']), 'alignment'] = alignment.ident
-            against.append(alignment)
+            for cluster, cluster_df in unaligned.groupby(by='cluster'):
+                alignment = AlignmentProfile(length, cluster_df, global_alignment_ident_no)
+                alignments[global_alignment_ident_no] = alignment
+                global_alignment_ident_no += 1
+                against.append(alignment)
+        else:
+            # threshold is less than one, no clustering nor alignment takes place
+            df_group["aligned"] = [(np.inf, None) for _ in range(len(df_group))]
+            unaligned = df_group.copy()
+            unaligned["cluster"] = list(range(len(unaligned)))
+            # print(f"pseudoclustering elapsed: {time.time() - s}")
+
+            s = time.time()
+            for i, row in unaligned.iterrows():
+                cluster_df = pd.DataFrame(row).T
+                alignment = AlignmentProfile(length, cluster_df, global_alignment_ident_no)
+                alignments[global_alignment_ident_no] = alignment
+                global_alignment_ident_no += 1
+                against.append(alignment)
+            # print(f"alignment elapsed: {time.time() - s}")
 
 
 print(f"{aligned_sqs_file} elapsed: {time.time() - start}")
