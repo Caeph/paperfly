@@ -10,20 +10,9 @@ import argparse
 import heapq
 import numpy as np
 
-
 # this is done as described in Velvet genome assembler -- Tour bus algorithm
 
 parser = argparse.ArgumentParser()
-#parser.add_argument("--component",
-#                    default=None,
-#                    type=str,
-#                    help="Path to input: fasta of a weakly connected component."
-#                    )
-#parser.add_argument("--output",
-#                    default=None,
-#                    type=str,
-#                    help="Path to output: fasta of a corrected weakly connected component."
-#                    )
 parser.add_argument("--raw_components",
                     default=None,
                     type=str,
@@ -82,13 +71,6 @@ def sequence_from_path(G, k, path):
 def compare_sqs(s1, s2):
     align = edlib.align(s1, s2, mode='NW', task='path')
 
-    # no gaps -- if best alignment contains gaps (I -- insertion, D -- deletion), dont contract
-    # will not use that
-    # if ("I" in align["cigar"]) or ("D" in align["cigar"]):
-    #    print("gapped")
-    #    print(edlib.getNiceAlignment(align, s1, s2))
-    #    return 0, align
-
     similarity = 1 - (2 * align["editDistance"] / (len(s1) + len(s2)))  # frakce stejnych
     return similarity, align
 
@@ -129,61 +111,28 @@ def get_new_node_info(aligned, endindex, last_endindex,
     kmers = endindex - init - k + 1
 
     # no gaps expected
-    if ("-" not in represented1) and ("-" not in represented2):
-        c1, c2 = counts1[init:init + kmers], counts2[init:init + kmers]
+    c1, c2 = counts1[init:init + kmers], counts2[init:init + kmers]
 
-        if represented1 == represented2:
-            return represented1, c1
+    if represented1 == represented2:
+        return represented1, c1
 
-        new_counts = [x + y for x, y in zip(c1, c2)]
-        new_sq = [represented1, represented2][more_abundant]
+    new_counts = [x + y for x, y in zip(c1, c2)]
+    new_sq = [represented1, represented2][more_abundant]
 
-        if more_abundant == 0:
-            archive_ungapped(represented2,
-                             mapped_to=represented1,
-                             alignment_score=aligned["score"],
-                             counts=c2,
-                             contracted_info=contracted_info
-                             )
-        else:
-            archive_ungapped(represented1,
-                             mapped_to=represented2,
-                             alignment_score=aligned["score"],
-                             counts=c1,
-                             contracted_info=contracted_info
-                             )
+    if more_abundant == 0:
+        archive_ungapped(represented2,
+                         mapped_to=represented1,
+                         alignment_score=aligned["score"],
+                         counts=c2,
+                         contracted_info=contracted_info
+                         )
     else:
-        # select the more abundant sequence
-        # todo ujistit se, ze to neporusuje k-mer length invariance
-        # asi vzit tu gapped a uplne ji vyrazit, vcetne vrcholu zavazanych na ni
-        c1 = counts1[init:init + (kmers - len([x for x in represented1 if x == "-"]))]
-        c2 = counts2[init:init + (kmers - len([x for x in represented2 if x == "-"]))]
-
-        if len(c1) == 0:
-            l1 = -1
-        else:
-            l1 = len(c1)
-
-        if len(c2) == 0:
-            l2 = -1
-        else:
-            l2 = len(c2)
-
-        avg_c1 = sum(c1) / l1
-        avg_c2 = sum(c2) / l2
-
-        if avg_c1 >= avg_c2:
-            archive_gapped(represented2,
-                           mapped_to=represented1,
-                           alignment_score=aligned["score"],
-                           counts=c2, contracted_info=contracted_info)
-            new_sq, new_counts = represented1.replace("-", ""), c1
-        else:
-            archive_gapped(represented1,
-                           mapped_to=represented2,
-                           alignment_score=aligned["score"],
-                           counts=c1, contracted_info=contracted_info)
-            new_sq, new_counts = represented2.replace("-", ""), c2
+        archive_ungapped(represented1,
+                         mapped_to=represented2,
+                         alignment_score=aligned["score"],
+                         counts=c1,
+                         contracted_info=contracted_info
+                         )
 
     return new_sq, new_counts
 
@@ -195,28 +144,35 @@ def get_bubble_startpoint(subG, bubble_endpoint):
     # probe first
     seen = set()
     walkthrough1 = []
-    stack = [e1[0]]
-    while len(stack) > 0:
-        current = stack.pop(0)
+    queue = [e1[0]]
+    while len(queue) > 0:
+        current = queue.pop(0)
         walkthrough1.append(current)
         seen.add(current)
+
+        # if subG.in_degree(current) > 1:
+        #     print(current)
+
         for prev_, _ in subG.in_edges(current):
             if prev_ in seen:
                 continue
-            stack.insert(0, prev_)
+            # stack.insert(0, prev_)
+            queue.append(prev_)
 
     # probe second
+    # take the closest first! in the number of vertices -- use queue
     seen = set()
-    stack = [e2[0]]
-    while len(stack) > 0:
-        current = stack.pop(0)
+    queue = [e2[0]]
+    while len(queue) > 0:
+        current = queue.pop(0)
         if current in walkthrough1:
             return current
         seen.add(current)
         for prev_, _ in subG.in_edges(current):
             if prev_ in seen:
                 continue
-            stack.insert(0, prev_)
+            # stack.insert(0, prev_)
+            queue.append(prev_)
 
     return None
 
@@ -256,13 +212,16 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
     if bubble_startpoint == bubble_endpoint:
         return False
 
-    # print(bubble_startpoint, bubble_endpoint)
-
     paths_to_contract = list(nx.all_simple_paths(subG, bubble_startpoint, bubble_endpoint))
+    if len(paths_to_contract) < 2:
+        # this was a cycle
+        return False
 
     if len(paths_to_contract) != 2:
-        # print(paths_to_contract)
-        # print(subG.edges())
+        print("ERROR INFO:")
+        print(paths_to_contract)
+        print("subG:")
+        print(subG.edges())
         raise Exception("Wrong number of paths to contract.")
 
     # generate sequences, compare them
@@ -274,20 +233,80 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
     if (len(sq1) > max_bubble_length) or (len(sq2) > max_bubble_length):
         return None
 
-    similarity, alignment = compare_sqs(sq1, sq2)
+    counts1, counts2 = [], []
+    for v in path1:
+        counts1.extend(G.nodes[v]["counts"])
+    for v in path2:
+        counts2.extend(G.nodes[v]["counts"])
 
+    # if one of the paths is gapped, keep the whole one and archive the other
+    # if both are, keep the more abundant and keep it, archive the other
+    similarity, alignment = compare_sqs(sq1, sq2)
+    if ("I" in alignment["cigar"]) and ("D" in alignment["cigar"]):
+        # both are gapped: pick the more abundant
+        more_abundant = get_more_abundant(G, path1, path2)
+        vertices_to_remove = set([path1, path2][more_abundant])
+        archived_sq = [sq1, sq2][more_abundant]
+        archived_counts = [counts1, counts2][more_abundant]
+        if more_abundant == 0:
+            archive_gapped(archived_sq,
+                           mapped_to=sq2,
+                           alignment_score=alignment["editDistance"],
+                           counts=archived_counts,
+                           contracted_info=contracted_info
+                           )
+        else:
+            archive_gapped(archived_sq,
+                           mapped_to=sq1,
+                           alignment_score=alignment["editDistance"],
+                           counts=archived_counts,
+                           contracted_info=contracted_info
+                           )
+        unchanged = [x for x in G.nodes if x not in vertices_to_remove]
+        newG = G.subgraph(unchanged).copy()
+
+        return newG
+    elif "D" in alignment["cigar"]:
+        # path1 is gapped
+        vertices_to_remove = path1
+        archive_gapped(sq1,
+                       mapped_to=sq2,
+                       alignment_score=alignment["editDistance"],
+                       counts=counts1,
+                       contracted_info=contracted_info
+                       )
+        unchanged = [x for x in G.nodes if x not in vertices_to_remove]
+        newG = G.subgraph(unchanged).copy()
+
+        return newG
+    elif "I" in alignment["cigar"]:
+        # path2 is gapped
+        vertices_to_remove = path2
+        archive_gapped(sq2,
+                       mapped_to=sq1,
+                       alignment_score=alignment["editDistance"],
+                       counts=counts2,
+                       contracted_info=contracted_info
+                       )
+        unchanged = [x for x in G.nodes if x not in vertices_to_remove]
+        newG = G.subgraph(unchanged).copy()
+
+        return newG
+
+    # generate new graph with contracted vertices
+    changed = set(path1).union(set(path2))
+    unchanged = [x for x in G.nodes if x not in changed]
+    newG = G.subgraph(unchanged).copy()
+
+    # managing ungapped alignments
     aligned_sqs, endings_aligned = get_endings_in_alignment(sq1, sq2, endings1, endings2, alignment)
+
     reversed_endings = {}
     for vertex, index in endings_aligned.items():
         if index in reversed_endings:
             reversed_endings[index].append(vertex)
         else:
             reversed_endings[index] = [vertex]
-
-    # generate new graph with contracted vertices
-    changed = set(path1).union(set(path2))
-    unchanged = [x for x in G.nodes if x not in changed]
-    newG = G.subgraph(unchanged).copy()
 
     # find vertices, after which there must be a break in alignment]
     branchings_after = []
@@ -311,22 +330,16 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
     # pick the more abundant path as a whole
     more_abundant = get_more_abundant(G, path1, path2)
 
-    counts1, counts2 = [], []
-    for v in path1:
-        counts1.extend(G.nodes[v]["counts"])
-    for v in path2:
-        counts2.extend(G.nodes[v]["counts"])
-
     last_vertex, last_index = None, None
     for index, group in breakings_in_aligned:
         items = list(group)
         # these vertices end on the same point in the alignment AND after them a vertex must end
         # for each break find all vertices that end there (that do not necessarily require break)
         ending_vertices = reversed_endings[index]
-
         new_vertex = min([v for v in ending_vertices])
 
-        new_sq, new_count = get_new_node_info(aligned_sqs, index, last_index, more_abundant, counts1, counts2, k, contracted_info)
+        new_sq, new_count = get_new_node_info(aligned_sqs, index, last_index,
+                                              more_abundant, counts1, counts2, k, contracted_info)
         newG.add_node(new_vertex, sq=new_sq, counts=new_count, length=len(new_sq))
         # link with the node added in previous step
         if last_vertex is not None:
@@ -354,12 +367,12 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
         if G.nodes[to_]["length"] >= k:
             G.edges[(from_, to_)]["extension"] = G.nodes[to_]["length"] - k + 1
         else:
+            raise Exception(f"Insertion of node with less than k={k} bases.")
             # print()
-            G.edges[(from_, to_)]["extension"] = None
-
+            # G.edges[(from_, to_)]["extension"] = None
 
     reasonable = [n for n, deg in G.out_degree() if deg > 0]
-    reasonable = [n for n in reasonable if G.in_degree(n) > 0]
+    reasonable = [n for n in reasonable if G.in_degree(n) > 0]  # sufficient starting points
 
     if len(reasonable) == 0:
         return None, None
@@ -373,7 +386,8 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
             dists = sorted(dists.items(), key=lambda x: x[1])
             all_dists[source] = dists
 
-    print(f"preparation done: {time.time() - start}")
+    # print(f"preparation done: {time.time() - start}")
+    start = time.time()
 
     reasonable = set(reasonable)
 
@@ -384,7 +398,6 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
         for node in reasonable:
             # print(node)
             if len(all_dists[node]) <= step:
-
                 to_remove.add(node)
                 continue
             # do step and check for bubble
@@ -392,14 +405,14 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
             closed[node].add(current)
 
             for _, next_ in G.edges(current):
-                # print(node, next_)
-                if (next_ in discovered[node]) and (next_ not in closed[node]):
+                if next_ in discovered[node]:
+                    # todo check if it is not a cycle and not a bubble
+
                     contracted_graph = contract_bubble(G, k, next_, closed[node], max_bubble_length, contracted_info)
                     if contracted_graph:
-                        # all_dists = {}
                         # remove affected vertices
                         all_dists.pop(next_, None)
-                        for affected in closed[node]:  # these are definitely close enough
+                        for affected in closed[node]:  # these are definitely affected
                             all_dists.pop(affected, None)
                         to_remove = set()
                         for n in all_dists:
@@ -409,11 +422,13 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
                                     break
                         for n in to_remove:
                             all_dists.pop(n, None)
+
+                        # print(f"identification done: {time.time() - start}")
                         return contracted_graph, all_dists
                 else:
                     discovered[node].add(next_)
         reasonable.difference(to_remove)
-
+    # print(f"identification done: {time.time() - start}")
     return None, None
 
 
@@ -427,32 +442,36 @@ def signum(no):
 
 
 def process_component(filename, contracted_info, output_file, args):
-    print(filename)
-    k = args.k
-    if args.max_bubble_sequence is None:
-        max_bubble_length = 2 * (k - 1) + 2 * k
-    else:
-        max_bubble_length = args.max_bubble_sequence
-        # max length of sequence represented in a bubble
+    # print(filename)
+    try:
+        k = args.k
+        if args.max_bubble_sequence is None:
+            max_bubble_length = 2 * (k - 1) + 2 * k
+        else:
+            max_bubble_length = args.max_bubble_sequence
+            # max length of sequence represented in a bubble
 
-    orig_graph = prep.debruijn_fasta_to_digraph(filename, extended_data=True)
-    # stuff is being added to this with contractions of paths -- info on errors and variability
+        orig_graph = prep.debruijn_fasta_to_digraph(filename, extended_data=True)
+        # stuff is being added to this with contractions of paths -- info on errors and variability
 
-    graph = orig_graph
-    graph.remove_edges_from(nx.selfloop_edges(graph))
-    output_graph = graph
-    # forbidden = {}  # storing endpoints of too dissimilar bubbles
-    # for item in graph.nodes:
-    #    forbidden[item] = set()
-    all_dists = {}
+        graph = orig_graph
+        graph.remove_edges_from(nx.selfloop_edges(graph))
+        output_graph = graph
+        # forbidden = {}  # storing endpoints of too dissimilar bubbles
+        # for item in graph.nodes:
+        #    forbidden[item] = set()
+        all_dists = {}
 
-    while graph is not None:
-        new_graph, all_dists = identify_contract_bubble(graph, args.k, max_bubble_length,
-                                                        contracted_info, all_dists)
-        if new_graph is not None:
-            output_graph = new_graph
-        graph = new_graph
-        # if graph is none, keep the old graph as the output one
+        while graph is not None:
+            new_graph, all_dists = identify_contract_bubble(graph, args.k, max_bubble_length,
+                                                            contracted_info, all_dists)
+            # if graph is none, keep the old graph as the output one
+            if new_graph is not None:
+                output_graph = new_graph
+            graph = new_graph
+    except Exception as e:
+        print(f"Error occured at {filename}. Exception is being raised.")
+        raise e
 
     # write output_graph to file
     with open(output_file, mode='w') as writer:

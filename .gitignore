@@ -15,6 +15,7 @@ Selex*
 *.idea/*
 
 .gitignore
+decomposition/inspect_components_after_error_correction.py
 
 # the rest of the .gitignore was downloaded from https://gist.github.com/takekazuomi/109558
 
