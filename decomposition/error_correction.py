@@ -7,8 +7,8 @@ import preprocessing as prep
 import edlib
 from itertools import groupby
 import argparse
+from multiprocessing import Pool
 import heapq
-import numpy as np
 
 # this is done as described in Velvet genome assembler -- Tour bus algorithm
 
@@ -139,6 +139,7 @@ def get_new_node_info(aligned, endindex, last_endindex,
 
 def get_bubble_startpoint(subG, bubble_endpoint):
     # endpoint has always two incoming edges
+
     e1, e2 = subG.in_edges(bubble_endpoint)
 
     # probe first
@@ -160,7 +161,6 @@ def get_bubble_startpoint(subG, bubble_endpoint):
             queue.append(prev_)
 
     # probe second
-    # take the closest first! in the number of vertices -- use queue
     seen = set()
     queue = [e2[0]]
     while len(queue) > 0:
@@ -203,9 +203,15 @@ def get_more_abundant(G, path1, path2):
     return 1
 
 
-def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, contracted_info):
+def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, contracted_info, seen_edges):
     seen_vertices.add(bubble_endpoint)
-    subG = G.subgraph(seen_vertices)
+
+    subG = nx.DiGraph()
+    subG.add_edges_from(seen_edges)
+
+    if len(subG.in_edges(bubble_endpoint)) != 2:  # a cycle is involved
+        return False
+
     bubble_startpoint = get_bubble_startpoint(subG, bubble_endpoint)
 
     # test for cycles
@@ -230,7 +236,7 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
     sq1, endings1 = sequence_from_path(G, k, path1)
     sq2, endings2 = sequence_from_path(G, k, path2)
 
-    if (len(sq1) > max_bubble_length) or (len(sq2) > max_bubble_length):
+    if (len(sq1) > max_bubble_length) and (len(sq2) > max_bubble_length):
         return None
 
     counts1, counts2 = [], []
@@ -359,10 +365,26 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
     return newG
 
 
+class dijkstraer:
+    def __init__(self, G, max_bubble):
+        self.graph = G
+        self.max_bubble = max_bubble
+
+    def calc_distances(self, s):
+        dists = nx.single_source_dijkstra_path_length(self.graph,
+                                                      s,
+                                                      weight="extension",
+                                                      cutoff=1.01 * self.max_bubble)
+        # dists = sorted(dists.items(), key=lambda x: x[1])
+        return dists
+
+
 def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists):
     # returns a new graph with contracted
     discovered = {}  # node : set
     closed = {}  # node : set
+    closed_edges = {}  # node : list of edges
+
     for from_, to_ in G.edges:
         if G.nodes[to_]["length"] >= k:
             G.edges[(from_, to_)]["extension"] = G.nodes[to_]["length"] - k + 1
@@ -371,64 +393,66 @@ def identify_contract_bubble(G, k, max_bubble_length, contracted_info, all_dists
             # print()
             # G.edges[(from_, to_)]["extension"] = None
 
-    reasonable = [n for n, deg in G.out_degree() if deg > 0]
-    reasonable = [n for n in reasonable if G.in_degree(n) > 0]  # sufficient starting points
+    reasonable = [n for n, deg in G.out_degree() if deg > 1]
+    # reasonable = [n for n in reasonable if G.in_degree(n) > 0]  # sufficient starting points
 
     if len(reasonable) == 0:
         return None, None
 
-    start = time.time()
+    # start = time.time()
+    to_dijkstra = []
     for source in reasonable:
         discovered[source] = set()
         closed[source] = set()
+        closed_edges[source] = []
         if source not in all_dists:
-            dists = nx.single_source_dijkstra_path_length(G, source, weight="extension", cutoff=1.1 * max_bubble_length)
-            dists = sorted(dists.items(), key=lambda x: x[1])
-            all_dists[source] = dists
+            to_dijkstra.append(source)
 
-    # print(f"preparation done: {time.time() - start}")
-    start = time.time()
+    d = dijkstraer(G, max_bubble_length)
+
+    with Pool(8) as pool:
+        distances = pool.map(d.calc_distances, to_dijkstra)
+    for source, dists in zip(to_dijkstra, distances):
+        all_dists[source] = dists
 
     reasonable = set(reasonable)
 
-    for step in range(4 * len(G.nodes)):  # top estimate on no of steps -- from degree
-        to_remove = set()
-        if len(reasonable) == 0:
-            return None, None  # no point in continuation
-        for node in reasonable:
-            # print(node)
-            if len(all_dists[node]) <= step:
-                to_remove.add(node)
-                continue
-            # do step and check for bubble
-            current, distance = all_dists[node][step]
-            closed[node].add(current)
+    to_process = []
+    for item in all_dists:
+        to_process.extend(
+            [(item, to, dst) for to, dst in all_dists[item].items()]
+        )
+    to_process = sorted(to_process, key=lambda x: x[2])
 
-            for _, next_ in G.edges(current):
-                if next_ in discovered[node]:
-                    # todo check if it is not a cycle and not a bubble
+    for node, current, distance in to_process:
+        closed[node].add(current)
+        # print(f"DST:{distance}, {node}")
+        for _, next_ in G.edges(current):
+            # print(f"\t {next_}")
+            closed_edges[node].append((current, next_))
+            if next_ in discovered[node]:
+                contracted_graph = contract_bubble(G, k, next_, closed[node], max_bubble_length, contracted_info, closed_edges[node])
+                if contracted_graph is None:
+                    return contracted_graph, None
+                if contracted_graph:
+                    # remove affected vertices
+                    all_dists.pop(next_, None)
+                    for affected in closed[node]:  # these are definitely affected
+                        all_dists.pop(affected, None)
+                    to_remove = set()
+                    for n in all_dists:
+                        for m, dst in all_dists[n].items():
+                            if m in closed[node]:
+                                to_remove.add(n)
+                                break
+                    for n in to_remove:
+                        all_dists.pop(n, None)
 
-                    contracted_graph = contract_bubble(G, k, next_, closed[node], max_bubble_length, contracted_info)
-                    if contracted_graph:
-                        # remove affected vertices
-                        all_dists.pop(next_, None)
-                        for affected in closed[node]:  # these are definitely affected
-                            all_dists.pop(affected, None)
-                        to_remove = set()
-                        for n in all_dists:
-                            for m, dst in all_dists[n]:
-                                if m in closed[node]:
-                                    to_remove.add(n)
-                                    break
-                        for n in to_remove:
-                            all_dists.pop(n, None)
+                    # print(f"identification done: {time.time() - start}")
+                    return contracted_graph, all_dists
+            else:
+                discovered[node].add(next_)
 
-                        # print(f"identification done: {time.time() - start}")
-                        return contracted_graph, all_dists
-                else:
-                    discovered[node].add(next_)
-        reasonable.difference(to_remove)
-    # print(f"identification done: {time.time() - start}")
     return None, None
 
 
@@ -441,7 +465,7 @@ def signum(no):
         return ""
 
 
-def process_component(filename, contracted_info, output_file, args):
+def process_component(filename, contracted_info, output_file, args, bub_done, comp_done):
     # print(filename)
     try:
         k = args.k
@@ -462,15 +486,18 @@ def process_component(filename, contracted_info, output_file, args):
         #    forbidden[item] = set()
         all_dists = {}
 
+        bubbles = 0
         while graph is not None:
             new_graph, all_dists = identify_contract_bubble(graph, args.k, max_bubble_length,
                                                             contracted_info, all_dists)
+            print(f"now processing {filename}; already processed components: {comp_done}, corrected bubbles {bub_done + bubbles} ({bubbles} in current)", end='\r')
             # if graph is none, keep the old graph as the output one
             if new_graph is not None:
                 output_graph = new_graph
+                bubbles += 1
             graph = new_graph
     except Exception as e:
-        print(f"Error occured at {filename}. Exception is being raised.")
+        print(f"Error occurred at {filename}. Exception is being raised.")
         raise e
 
     # write output_graph to file
@@ -496,6 +523,8 @@ def process_component(filename, contracted_info, output_file, args):
             print(f">{id}", file=writer)
             print(f"{sq}", file=writer)
 
+    return bubbles
+
 
 def main(args):
     input_directory = args.raw_components
@@ -507,12 +536,17 @@ def main(args):
 
     files = os.listdir(input_directory)
 
-    with bar("correcting errors...", max=len(files)) as progressbar:
-        for comp in files:
-            filename = f"{input_directory}/{comp}"
-            output_file = f"{output_directory}/corr_{comp}"
-            process_component(filename, contracted_info, output_file, args)
-            progressbar.next()
+    repaired_bubble = 0
+    repaired_comps = 0
+
+    # with bar("correcting errors...", max=len(files)) as progressbar:
+    for comp in files:
+        filename = f"{input_directory}/{comp}"
+        output_file = f"{output_directory}/corr_{comp}"
+        repaired_bubble += process_component(filename, contracted_info, output_file, args, repaired_bubble, repaired_comps)
+        repaired_comps += 1
+
+    print("Error correction finished.")
 
 
 if __name__ == '__main__':
