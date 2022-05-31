@@ -13,6 +13,7 @@ Selex*
 
 *.run/*
 *.idea/*
+test*
 
 .gitignore
 decomposition/inspect_components_after_error_correction.py
