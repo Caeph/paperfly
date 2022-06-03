@@ -126,7 +126,6 @@ def get_fasta_from_fastq(fastqfile, args):
 
 def run_prep(args, fastapath, scaling_coef=0.9):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
-
     unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance * 2)
     shutil.move(unitigs, base_path + ".unitigs.fa")
     unitigs = base_path + ".unitigs.fa"

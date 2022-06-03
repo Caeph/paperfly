@@ -57,6 +57,29 @@ def get_control_counts(control, k, flag="unitigs", directory=None):
     return control_mers
 
 
+def get_all_kmer_counts(source_path, k, directory, outputpath, iffile):
+    print(f"processing {source_path}...")
+    ident = ".".join(os.path.split(source_path)[-1].split(".")[:-1])
+
+    print("\tcalculating")
+    output_tmp = f"{directory}/{ident}.jf"
+    process = subprocess.run(
+        [
+            f"{jellyfish_path} count -m {k} -s 1G -t 10 --if {iffile} -o {output_tmp} {source_path}"
+        ],
+        shell=True)
+    evaluate_process(process)
+
+    print("\tdumping to csv")
+    process = subprocess.run(
+        [f"{jellyfish_path} dump {output_tmp} > {outputpath}"],
+        shell=True)
+    evaluate_process(process)
+
+    for fl in [output_tmp]:
+        os.remove(fl)
+
+
 def evaluate_process(completed, continue_if_bad=False):
     if not continue_if_bad:
         completed.check_returncode()

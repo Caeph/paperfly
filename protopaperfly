@@ -224,7 +224,7 @@ else
 fi
 
 echo RUNNING SECONDARY DECOMPOSITION
-cat $WORKING_DIR/replaced.tsv >$WORKING_DIR/corrected_graph.unitigs.fasta
+cat $WORKING_DIR/corrected/* >$WORKING_DIR/corrected_graph.unitigs.fasta
 $PYTHON $SECDECOMPOSITION --corrected_graph $WORKING_DIR/corrected_graph.unitigs.fasta --corrected_components $WORKING_DIR/corrected_decomposed
 if [ $? -eq 0 ]
 then
@@ -254,6 +254,7 @@ else
 	exit 1
 fi
 
+# todo nahradit namapovanim low abund kmers a variants from corrected
 echo RUNNING CLUSTERING ALIGNMENT
 $PYTHON $CLUSTERING_SCRIPT --misses $MISS --input $WORKING_DIR/aligned --k $K
 if [ $? -eq 0 ]

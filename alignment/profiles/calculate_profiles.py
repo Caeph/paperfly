@@ -58,6 +58,7 @@ operations = {
     '|' : 0
 }
 
+
 class AlignmentProfile:
     def __init__(self, width, df, identifier):
         self.ident = identifier
