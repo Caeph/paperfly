@@ -10,6 +10,7 @@ venv/
 output_paperfly*
 *.h5
 Selex*
+test*
 
 *.run/*
 *.idea/*
