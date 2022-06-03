@@ -32,8 +32,6 @@ def main(args):
     if args.draw:
         prep.draw_components(output_dir, 1, f"{output_dir}_pictures")
 
-    # todo pool replaced sequences
-
 
 if __name__ == '__main__':
     args = parser.parse_args([] if "__file__" not in globals() else None)

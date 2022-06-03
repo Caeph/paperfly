@@ -67,3 +67,4 @@ threadpoolctl==2.1.0
 typing-extensions==3.7.4.3
 urllib3==1.26.4
 yarl==1.6.3
+hmmlearn==0.2.7

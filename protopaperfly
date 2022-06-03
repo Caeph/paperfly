@@ -4,6 +4,8 @@ PYTHON="XXXXXvenv/bin/python3" # python interpreter
 
 # paths to programs -- set absolute during make
 DECOMPOSITION="XXXXXdecomposition/decomposition.py"
+ERRORCORRECTION="XXXXXdecomposition/error_correction.py"
+SECDECOMPOSITION="XXXXXdecomposition/secondary_decomposition.py"
 ASSEMBLER="XXXXXpseudoassembly/SamplerEulerianEfficient"
 EXACTMATCHING="XXXXXalignment/exact_match/Aligner3"
 CLUSTERING_LEV="XXXXXalignment/profiles/calculate_profiles.py"
@@ -12,6 +14,9 @@ PEAKCALLING="XXXXXpeak_calling/derivation_peaks_profiling.py"
 
 MISS=1
 DST_METRIC="levenstein" # or hamming
+MAX_BUBBLE_LENGTH=""  # --max_bubble_sequence
+
+# todo bubble size limit parameter
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -20,6 +25,7 @@ while [[ $# -gt 0 ]]; do
   case $key in
     --help)
       cat XXXXXREADME.md
+      # todo help better
       exit
       ;;
     --input_fastq)
@@ -125,6 +131,7 @@ then
 else
 	echo no input file given, exiting...
 	cat XXXXXREADME.md
+	# todo help better
 	exit 1
 fi
 
@@ -205,12 +212,30 @@ else
 	exit 1
 fi
 
-# echo Decomposition cleanup...
-# rm $WORKING_DIR/*.tmp $WORKING_DIR/*.jf $WORKING_DIR/*.fa $WORKING_DIR/*.counts.csv $WORKING_DIR/*.fasta
-# echo Done.
+
+echo RUNNING ERROR CORRECTION
+$PYTHON $ERRORCORRECTION --k $K --raw_components $WORKING_DIR/components --corrected_components $WORKING_DIR/corrected --replaced $WORKING_DIR/replaced.tsv $MAX_BUBBLE_LENGTH
+if [ $? -eq 0 ]
+then
+	echo ERROR CORRECTION DONE
+else
+	echo error correction was unsuccesful, exiting
+	exit 1
+fi
+
+echo RUNNING SECONDARY DECOMPOSITION
+cat $WORKING_DIR/corrected/* >$WORKING_DIR/corrected_graph.unitigs.fasta
+$PYTHON $SECDECOMPOSITION --corrected_graph $WORKING_DIR/corrected_graph.unitigs.fasta --corrected_components $WORKING_DIR/corrected_decomposed
+if [ $? -eq 0 ]
+then
+	echo SECONDARY DECOMPOSITION DONE
+else
+	echo secondary decomposition was unsuccesful, exiting
+	exit 1
+fi
 
 echo RUNNING PSEUDOASSEMBLY
-mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/components --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
+mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/corrected_decomposed --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
 if [ $? -eq 0 ]
 then
 	echo PSEUDOASSEMBLY DONE
@@ -229,6 +254,7 @@ else
 	exit 1
 fi
 
+# todo nahradit namapovanim low abund kmers a variants from corrected
 echo RUNNING CLUSTERING ALIGNMENT
 $PYTHON $CLUSTERING_SCRIPT --misses $MISS --input $WORKING_DIR/aligned --k $K
 if [ $? -eq 0 ]
