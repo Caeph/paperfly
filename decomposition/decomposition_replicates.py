@@ -176,18 +176,18 @@ def main(args):
             exit(1)
 
     # create working_directory
-    # if args.working_dir is None:
-    #     input_short = f"fasta={os.path.split(args.input_directory)[-1]}"
-    #     args.working_dir = "{}-{}-{}".format(
-    #         "motif_finding",
-    #         datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
-    #         "_".join(
-    #             [*("{}={}".format(re.sub("(.)[^_]*_?", r"\1", key), value) for key, value in sorted(vars(args).items())
-    #                if
-    #                key not in ["working_dir", "input_fasta", "input_fastq", "control_filename"]), input_short]
-    #         )
-    #     )
-    #     print(f"The working dir was set as {args.working_dir}")
+    if args.working_dir is None:
+        input_short = f"fasta={os.path.split(args.input_directory)[-1]}"
+        args.working_dir = "{}-{}-{}".format(
+            "motif_finding",
+            datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
+            "_".join(
+                [*("{}={}".format(re.sub("(.)[^_]*_?", r"\1", key), value) for key, value in sorted(vars(args).items())
+                    if
+                    key not in ["working_dir", "input_fasta", "input_fastq", "control_filename"]), input_short]
+             )
+         )
+        print(f"The working dir was set as {args.working_dir}")
     # os.makedirs(args.working_dir, exist_ok=False)
 
     description = pd.read_csv(args.input_description, header=0, sep="\t")
@@ -201,27 +201,26 @@ def main(args):
     for name, gr in control_groups:
         control2fasta[name] = get_path_to_fasta(name, args)
 
-    # print("pooling treatment sequences")
-    # pooled_fasta = f"{args.working_dir}/pooled_sequences.fasta"
-    # pool_sequences(pooled_fasta, fastq2fasta)
-    #
-    # print("pooling control sequences")
-    # pooled_control = f"{args.working_dir}/pooled_control_sequences.fasta"
-    # pool_sequences(pooled_control, control2fasta)
-    #
+    print("pooling treatment sequences")
+    pooled_fasta = f"{args.working_dir}/pooled_sequences.fasta"
+    pool_sequences(pooled_fasta, fastq2fasta)
+
+    print("pooling control sequences")
+    pooled_control = f"{args.working_dir}/pooled_control_sequences.fasta"
+    pool_sequences(pooled_control, control2fasta)
+
     # # calculate minimal abundance
-    # if args.minimal_abundance is None:
-    #     overall_minimal_abundance = calculate_minimal_abundance(args,
-    #                                                             pooled_fasta,
-    #                                                             percentile=args.minimal_abundance_percentile,
-    #                                                             cleanup=True)
-    #     args.minimal_abundance = overall_minimal_abundance
-    # else:
-    #     args.minimal_abundance = args.minimal_abundance
-    #
-    # # prune based on counts
-    # components_path = run_prep(args, pooled_fasta, pooled_control)
-    # strongly_connected_components_description(components_path)
+    if args.minimal_abundance is None:
+        overall_minimal_abundance = calculate_minimal_abundance(args,
+                                                                 pooled_fasta,
+                                                                 percentile=args.minimal_abundance_percentile,
+                                                                 cleanup=True)
+        args.minimal_abundance = overall_minimal_abundance
+    else:
+        args.minimal_abundance = args.minimal_abundance
+        # # prune based on counts
+    components_path = run_prep(args, pooled_fasta, pooled_control)
+    strongly_connected_components_description(components_path)
 
     # prepare counts on individual treatment and control files
     if_filename = f"{args.working_dir}/present_kmers.fa"
