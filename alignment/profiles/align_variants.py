@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import edlib
 import numpy as np
+from progress.bar import ChargingBar as bar
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--assembled_profiles",
@@ -26,58 +27,71 @@ parser.add_argument("--similarity_thr",
                          "for the low abundancy kmer to be mapped to it."
                     )
 parser.add_argument("--align_to",
-                    default="scaled",
+                    default="max",
                     type=str,
                     help="Manner in which to add the low abundant kmers to partially assembled sequences. "
-                         "Options: <scaled>: add the count to all matches respectively to the mean overall "
+                         "Options: <scaled>: add the count to all matches respectively to the original mean overall "
                          "count of the matched sequence."
-                         "<max>: add everything to the most abundant (in terms of mean overall count) matched sequence."
+                         "<max>: add everything to the most abundant (in terms of original mean overall count) matched "
+                         "sequence."
+                    )  # no mean recalculation is done
+parser.add_argument("--k", type=int, default=None, help="K-mer length.")
+parser.add_argument("--output_path",
+                    type=str,
+                    default="aligned_mapped.csv",
+                    help="Path to the output: aligned sequences with mapped lowly abundant. A ; separated csv file "
+                         "is produced."
                     )
-parser.add_argument("--k", type=int)  # todo desc
+
+chunksize = 10
 
 
-def process_max(df_profiles, min_dst, alignable, kmer_count, kmer):
-    ...
-    # todo
-    # candidates = df_profiles[alignable == min_dst]
-    #if len(candidates) > 0:
-    #    to_ = candidates[alignable == min_dst]["mean_count"]
-    #    index = candidates.iloc[to_].name
-    ##    new_val = list(df_profiles.iloc[index]["low_abund_indices"])
-    #    new_val.append(index)
-    #    df_profiles.loc[index, "low_abund_indices"] = new_val
+def rolling(df, window, step):
+    count = 0
+    df_length = len(df)
+    while count < (df_length - window):
+        yield count, df[count:window+count]
+        count += step
+    yield count, df[count:]
 
 
-def process_scaled(df_profiles, min_dst, alignable, kmer_count, kmer):
-    candidates = df_profiles[alignable == min_dst].copy()
-    scaled = candidates["mean_count"] / candidates["mean_count"].sum()
-    scaled = np.round(scaled * kmer_count).astype(int)
-
-    # find index where to add the count
-    candidates["toadd"] = scaled
+def process_scaled(candidates, kmer, kmer_count):
+    # index, startpos, scaled, kmer
     candidates["startpos"] = candidates["sq"].apply(
-        lambda longsq : edlib.align(
-            kmer, longsq, task="locations",
-            mode="HW", k=args.similarity_thr)["locations"][0][0]
+        lambda longsq: edlib.align(kmer, longsq,
+                                   mode="HW", k=args.similarity_thr,
+                                   task="locations"
+                                   )["locations"][0][0]
     )
+    scaled = candidates["mean_count"] / candidates["mean_count"].sum()
+    candidates["scaled"] = np.round(scaled * kmer_count).astype(int)
+    output = candidates[["index", "startpos", "scaled"]].copy()
+    output = output[output["scaled"] > 0]
+    output["kmer"] = kmer
 
-    # just adding to the start of the kmer, not minding the gaps
-    for i, row in candidates.iterrows():
-        c = row["counts"]
-        for i in range(row["startpos"], row["startpos"]+args.k):
-            c[i] += row["toadd"]
-        row["counts"] = c
+    return output.values
 
-    # add to the dataframe
-    # todo
 
-    return df_profiles
+def process_max(candidates, kmer, kmer_count):
+    # index startpos, scaled, kmer
+    index = candidates["mean_count"].argmax()
+    target = candidates.iloc[index]
+
+    startpos = edlib.align(kmer, target["sq"],
+                           mode="HW",
+                           k=args.similarity_thr,
+                           task="locations"
+                           )["locations"][0][0]
+    return np.atleast_2d(np.array([target["index"], startpos, kmer_count, kmer]))
 
 
 processing_styles = {
     "scaled" : process_scaled,
     "max" : process_max
 }
+# functions:
+# input : candidates df, kmer, kmer count
+# output : count,index,startpos start position
 
 
 def main(args):
@@ -86,39 +100,78 @@ def main(args):
             print("No input given, exiting.")
             exit(1)
 
-    if args.align_to not in processing_styles:
-        raise Exception("Unsupported variant of alignment.")
+    # if args.align_to not in processing_styles:
+    #     raise Exception("Unsupported variant of alignment.")
     processing_func = processing_styles[args.align_to]
 
     df_low = pd.read_csv(args.low_abundance_kmers, header=None, sep=';')
     df_low.columns = ["kmer", "counts"]
     df_low["counts"] = df_low["counts"].str.split(",").str[0].astype(int)
+    df_low["key"] = 1
 
     df_profiles = pd.read_csv(args.assembled_profiles, header=None, sep=';')
     df_profiles.columns = ["sq", "counts"]
+    df_profiles.reset_index(inplace=True)
     df_profiles["mean_count"] = df_profiles["counts"].str.split(",").apply(
         lambda lst: sum([int(x) for x in lst]) / len(lst)
     )
-    df_profiles["low_abund_indices"] = np.empty((len(df_profiles), 0)).tolist()
+    # df_profiles["low_abund_indices"] = np.empty((len(df_profiles), 0)).tolist()
     df_profiles["counts"] = df_profiles["counts"].str.split(",").apply(
         lambda lst: [int(x) for x in lst]
     )
+    df_profiles["key"] = 1
+    print("Data loaded.")
 
-    for i, row in df_low.iterrows():
-        kmer = row['kmer']
-        kmer_count = row['counts']
-        alignable = df_profiles["sq"].apply(
-            lambda longsq: edlib.align(kmer, longsq,
-                                       mode="HW", k=args.similarity_thr)["editDistance"]
-        )
-        if (alignable != -1).sum() == 0:  # cannot be aligned, no sufficiently close match
-            continue
+    with bar("Processing low abundancy kmers...", max=np.ceil(len(df_low) / chunksize)) as b:
+        overall_results = []
 
-        min_dst = alignable[alignable != -1].min()
-        df_profiles = processing_func(df_profiles, min_dst, alignable, kmer_count, kmer)
+        for _, chunk in rolling(df_low, chunksize, chunksize):
+            crossed = pd.merge(df_profiles, chunk, on="key", suffixes=("_sq", "_kmer"))
+            crossed['combined'] = crossed[["kmer", "sq"]].apply(
+                lambda row: row.values, axis=1)
+            dsts = crossed['combined'].apply(
+                lambda x: edlib.align(x[0], x[1],
+                                      mode="HW", k=args.similarity_thr)["editDistance"]
+            )
+            candidates = crossed[dsts != -1].copy()
+            candidates["distances"] = dsts[dsts != -1]
 
-    used_indications = df_profiles["low_abund_indices"].str.len() > 0
-    used = df_profiles[used_indications]
+            cand_groups = candidates.groupby(by="kmer")
+            for kmer, gr in cand_groups:
+                min_dst = gr["distances"].min()
+                kmer_count = gr["counts_kmer"].iloc[0]
+                valid_candidates_gr = gr[gr["distances"] == min_dst].copy()
+
+                aligned_result = processing_func(valid_candidates_gr, kmer, kmer_count)
+                overall_results.append(aligned_result)
+
+            b.next()
+
+    c = np.vstack(overall_results)
+    overall_results = pd.DataFrame(c)
+    overall_results.columns = ["target_index", "startpos", "count_toadd", "kmer"]
+    overall_results["target_index"] = overall_results["target_index"].astype(int)
+
+    # this does not work
+    results = pd.merge(df_profiles,
+                       overall_results,
+                       how="left", left_on="index", right_on="target_index")
+
+    print(results.columns)
+
+    # todo add the counts to add to general counts
+
+    results = results.groupby(by="sq").agg(
+        {
+            'sq': lambda x: x[0],
+            'counts': lambda x: x[0],
+            'target_index': lambda x: ','.join(x),
+            'kmer': lambda x: ','.join(x),
+            # 'target_index': lambda x: ','.join(x),
+        }
+    )
+    results.to_csv(args.output_path, sep=';', index=None)
+    print("Finished.")
 
 
 if __name__ == '__main__':
