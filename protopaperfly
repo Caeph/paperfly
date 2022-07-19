@@ -1,22 +1,52 @@
 #!/bin/bash
+# source ~/.bashrc
 
-PYTHON="XXXXXvenv/bin/python3" # python interpreter
+PAPERFLYPATH="XXXXX"
+VERSION="1.1"
+# python interpreter
+PYTHON="$PAPERFLYPATH/venv/bin/python3"
 
-# paths to programs -- set absolute during make
-DECOMPOSITION="XXXXXdecomposition/decomposition.py"
-ERRORCORRECTION="XXXXXdecomposition/error_correction.py"
-SECDECOMPOSITION="XXXXXdecomposition/secondary_decomposition.py"
-ASSEMBLER="XXXXXpseudoassembly/SamplerEulerianEfficient"
-EXACTMATCHING="XXXXXalignment/exact_match/Aligner3"
-CLUSTERING_LEV="XXXXXalignment/profiles/calculate_profiles.py"
-# CLUSTERING_HAM="alignment/profiles/calculate_profiles_hamming.py"
-PEAKCALLING="XXXXXpeak_calling/derivation_peaks_profiling.py"
+DECOMPOSITION="$PAPERFLYPATH/decomposition/decomposition_replicates.py"
+ERRORCORRECTION="$PAPERFLYPATH/decomposition/error_correction.py"
+SECDECOMPOSITION="$PAPERFLYPATH/decomposition/secondary_decomposition.py"
+ASSEMBLER="$PAPERFLYPATH/pseudoassembly/SamplerEulerianEfficient"
+EXACTMATCHING="$PAPERFLYPATH/alignment/exact_match/Aligner3"
+CLUSTERING_SCRIPT="$PAPERFLYPATH/alignment/profiles/align_blast.py"
+PEAKCALLING="$PAPERFLYPATH/peak_calling/probabilistic_peak_calling.py"
 
-MISS=1
-DST_METRIC="levenstein" # or hamming
-MAX_BUBBLE_LENGTH=""  # --max_bubble_sequence
+print_help () {
+  echo "This is PAPerFly, the Partial Assembly-based Peak-Finder, version $VERSION".
+  echo "Usage:"
+  echo "    paperfly --input_description <path to description TSV file> --input_directory <path to input directory> --k <k-mer size>"
+  echo
 
-# todo bubble size limit parameter
+  echo "Parameters:"
+  echo "--input_description: path to a csv file (filename, not whole path) describing treatment vs. control relationships for replicates."
+  echo "--input_directory: path to a directory with all input files. Cannot be current directory."
+  echo "--k: k-mer length for sliding window probing of the sequencing data. Cannot be a multiple of 4 (BCALM property)."
+  echo "--working_dir: path to a working directory. Must not exist, otherwise exception is thrown."
+  echo "--minimal_abundance: minimal abundance of a k-mer. Should be lower for higher k-mers. Note that lower abundance numbers lead to higher data complexity and longer runtime.If not specified, it is set as 90th percentile in the (non-unique) k-mer counts. Percentile can
+                        be adjusted by the --minimal_abundance_percentile parameter."
+  echo "--minimal_abundance_percentile: defined percentile of sufficiently abundant kmers. This calculation is time-consuming, but comes in handy if you don\'t know much about the input data size. BCALM also makes a number of temporary files during the calculation. These will be removed afterwards."
+  echo "--minimal_abundance_mapping: abundance threshold of a low abundance kmer count to be considered a sequencing error. Default: 10."
+  echo "--assembly_report_step: number of steps after which time and graph state are reported during pseudoassembly. Default: 250."
+  echo "--draw: option to draw the components graphs and graphs of assembled profile enrichments."
+  echo "--no_store_low: option to throw away low abundance kmers."
+ #  echo "--no_controls: option to omit controls. If this is used, empty <control> columns are expected."
+  echo "--miss_percentage: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 85"
+}
+
+# should fit to the params of the scripts
+MISS=85  # miss_percentage
+K=""  # k
+WORKING_DIR=""  # working_dir
+MIN_ABU_MAPPING=10  # minimal_abundance_mapping
+REPORT_STEP=250  # assembly_report_step
+INPUT=""  # csv file with description, input_description
+INPUT_DIR=""  # input_directory
+DRAW=""  # draw
+ABU=""  # minimal_abundance OR minimal_abundance_percentile
+LOW=""  # no_store_low
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -24,17 +54,16 @@ while [[ $# -gt 0 ]]; do
 
   case $key in
     --help)
-      cat XXXXXREADME.md
-      # todo help better
+      print_help
       exit
       ;;
-    --input_fastq)
-      FASTQ="$2"
+    --input_description)
+      INPUT="$2"
       shift # past argument
       shift # past value
       ;;
-    --input_fasta)
-      FASTA="$2"
+    --input_directory)
+      INPUT_DIR="$2"
       shift # past argument
       shift # past value
       ;;
@@ -42,15 +71,6 @@ while [[ $# -gt 0 ]]; do
       K="$2"
       shift # past argument
       shift # past value
-      ;;
-    --control_file)
-      CONTROL="--control_filename $2"
-      shift # past argument
-      shift # past value
-      ;;
-    --omit_control)
-      CONTROL="--omit_control"
-      shift # past argument
       ;;
     --minimal_abundance)
       MINIMAL_ABUNDANCE="$2"
@@ -62,7 +82,7 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
-    --working_directory)
+    --working_dir)
       WORKING_DIR="$2"
       shift # past argument
       shift # past value
@@ -71,67 +91,47 @@ while [[ $# -gt 0 ]]; do
       DRAW="--draw"
       shift # past argument
       ;;
-    --exclude_low)
+    --no_store_low)
       LOW="--no_store_low"
       shift # past argument
       ;;
-
-#######################################
-#   CLUSTERING PARAMS
-    --allowed_misses)
+    --minimal_abundance_mapping)
+      MIN_ABU_MAPPING="$2"
+      shift
+      shift
+      ;;
+    --assembly_report_step)
+      REPORT_STEP="$2"
+      shift
+      shift
+      ;;
+    --miss_percentage)
       MISS="$2"
-      shift # past argument
-      shift # past value
+      shift
+      shift
       ;;
-      
-#######################################
-#   PEAK CALLING PARAMS
-    --window)
-      WINDOW="--rolling_window $2"
-      shift # past argument
-      shift # past value
-      ;;
-    --prominence)
-      PROMINENCE="--prominence $2"
-      shift # past argument
-      shift # past value
-      ;;
-    --peak_format)
-      FORMAT="--weighting $2"
-      shift # past argument
-      shift # past value
-      ;;
-    --peak_min_width)
-      MINWIDTH="--peak_min_width $2"
-      shift # past argument
-      shift # past value
-      ;;
-    --peak_max_width)
-      MAXWIDTH="--peak_max_width $2"
-      shift # past argument
-      shift # past value
-      ;;
-      
-#######################################
-#   DEFAULT
+    #######################################
+    ####   DEFAULT
     *)    # unknown option
       POSITIONAL+=("$1") # save it in an array for later
       shift # past argument
       ;;
+    ####   \DEFAULT
   esac
 done
 
-# INPUT: if fasta available, use it, otherwise use fastq.
-if ! [ -z "$FASTA" ]
-then 
-	INPUT=$(echo --input_fasta $FASTA)
-elif ! [ -z "$FASTQ" ]
+if [ -z "$INPUT" ]
 then
-	INPUT=$(echo --input_fastq $FASTQ)
-else
 	echo no input file given, exiting...
-	cat XXXXXREADME.md
-	# todo help better
+	print_help
+	exit 1
+fi
+
+if [ -z "$INPUT_DIR" ]
+then
+	echo no input directory specified
+	echo "please put all the inputs specified in $INPUT to a single directory (not the current) and provide the path"
+	print_help
 	exit 1
 fi
 
@@ -139,71 +139,43 @@ fi
 if [ -z "$K" ]
 then
 	echo no k given, exiting...
+	print_help
 	exit 1
 fi
 
-# INPUT: the user must either specify control file or explicitly set --omit_control
-if [ -z "$CONTROL" ]
-then
-	echo no control given, either provide a control file "(set --control_file <filename>)" or set --omit_control
-	exit 1
-elif [ $CONTROL -eq "--omit_control" ]
-then
-	echo omitting control...
-	CONTROL=""
-fi
-
-# INPUT: working_directory ...
 if [ -z "$WORKING_DIR" ]
 then
-	dt=$(date '+%d%m%Y_%H%M%S');
-	WORKING_DIR=$(echo output_paperfly_$dt)
+	dt=$(date +%d%m%Y_%H%M%S);
+	WORKING_DIR=$(echo "output_paperfly_$dt")
 fi
 
 # INPUT: if minimal_abundance available, use it, otherwise use percentile.
 if ! [ -z "$MINIMAL_ABUNDANCE" ]
-then 
+then
 	ABU=$(echo --minimal_abundance $MINIMAL_ABUNDANCE)
 elif ! [ -z "$MINIMAL_PERCENTILE" ]
 then
 	ABU=$(echo --minimal_abundance_percentile $MINIMAL_PERCENTILE)
+else
+  ABU=""  # use default parameters
 fi
 
-# CLUSTERING:
-if [ $DST_METRIC = "levenstein" ]
-then
-	CLUSTERING_SCRIPT="$CLUSTERING_LEV"
-# elif [ $DST_METRIC = "hamming" ]
-# then
-#	CLUSTERING_SCRIPT="$CLUSTERING_HAM"
-# else
-#	echo unknown distance metric, exiting
-#	exit 1
-fi
+echo "Parameter recap:"
+echo "--input_description $INPUT"
+echo "--input_directory $INPUT_DIR"
+echo "--k $K"
+echo "$ABU"
+echo "--assembly_report_step $REPORT_STEP"
+echo "--working_dir $WORKING_DIR"
+echo "--miss_percentage $MISS"
+echo "--minimal_abundance_mapping $MIN_ABU_MAPPING"
+echo "$DRAW"
+echo "$LOW"
 
-echo Parameter recapitulation:
-echo DECOMPOSITION
-echo -e '\t'draw: $DRAW
-echo -e '\t'input: $INPUT
-echo -e '\t'k: $K
-echo -e '\t'min. abundance: $ABU
-echo -e '\t'work. dir.: $WORKING_DIR
-echo -e '\t'control: $CONTROL
-echo -e '\t'store_low: $LOW
+# run program
+echo RUNNING DECOMPOSITION
+$PYTHON $DECOMPOSITION --k $K --input_description $INPUT --input_directory $INPUT_DIR --working_dir $WORKING_DIR $DRAW $ABU $LOW
 
-echo CLUSTERING
-echo -e '\t'allowed_misses: $MISS
-echo -e '\t'clustering script: $CLUSTERING_SCRIPT
-
-echo PEAK CALLING
-echo -e '\t'rolling window: $WINDOW
-echo -e '\t'prominence: $PROMINENCE
-echo -e '\t'peak format: $FORMAT
-echo -e '\t'min peak width: $MINWIDTH
-echo -e '\t'max peak width: $MAXWIDTH
-
-echo RUNNING DECOMPOSITION...
-$PYTHON $DECOMPOSITION --k $K $INPUT $ABU $DRAW --working_dir $WORKING_DIR $CONTROL $LOW
 if [ $? -eq 0 ]
 then
 	echo DECOMPOSITION DONE
@@ -212,73 +184,65 @@ else
 	exit 1
 fi
 
-
-echo RUNNING ERROR CORRECTION
-$PYTHON $ERRORCORRECTION --k $K --raw_components $WORKING_DIR/components --corrected_components $WORKING_DIR/corrected --replaced $WORKING_DIR/replaced.tsv $MAX_BUBBLE_LENGTH
+echo ERROR CORRECTION
+$PYTHON $ERRORCORRECTION --k $K --raw_components $WORKING_DIR/components --corrected_components $WORKING_DIR/corrected --replaced $WORKING_DIR/replaced.tsv
 if [ $? -eq 0 ]
 then
-	echo ERROR CORRECTION DONE
+	echo DECOMPOSITION DONE
 else
-	echo error correction was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
 
-echo RUNNING SECONDARY DECOMPOSITION
+echo SECONDARY DECOMPOSITION
 cat $WORKING_DIR/corrected/* >$WORKING_DIR/corrected_graph.unitigs.fasta
 $PYTHON $SECDECOMPOSITION --corrected_graph $WORKING_DIR/corrected_graph.unitigs.fasta --corrected_components $WORKING_DIR/corrected_decomposed
 if [ $? -eq 0 ]
 then
-	echo SECONDARY DECOMPOSITION DONE
+	echo DECOMPOSITION DONE
 else
-	echo secondary decomposition was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
 
 echo RUNNING PSEUDOASSEMBLY
-mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/corrected_decomposed --k $K --output_path $WORKING_DIR/assemblies --report_step 100 --single_item false
+mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/corrected_decomposed --k $K --output_path $WORKING_DIR/assemblies --report_step $REPORT_STEP --single_item false
 if [ $? -eq 0 ]
 then
-	echo PSEUDOASSEMBLY DONE
+	echo DECOMPOSITION DONE
 else
-	echo pseudoassembly was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
 
 echo RUNNING EXACT MATCH MAPPING
-mono $EXACTMATCHING/bin/Release/Aligner3.exe $WORKING_DIR/assemblies $WORKING_DIR/aligned $K $MISS
+mono $EXACTMATCHING/bin/Release/Aligner3.exe $WORKING_DIR/assemblies $WORKING_DIR/aligned $K
 if [ $? -eq 0 ]
 then
-	echo EXACT MATCH MAPPING DONE
+	echo DECOMPOSITION DONE
 else
-	echo exact match mapping was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
 
-# todo nahradit namapovanim low abund kmers a variants from corrected
-echo RUNNING CLUSTERING ALIGNMENT
-$PYTHON $CLUSTERING_SCRIPT --misses $MISS --input $WORKING_DIR/aligned --k $K
+echo RUNNING ALIGNMENT
+$PYTHON $CLUSTERING_SCRIPT --perc_identity $MISS --k $K --working_dir $WORKING_DIR --min_abundance_mapping $MIN_ABU_MAPPING
 if [ $? -eq 0 ]
 then
-	echo CLUSTERING ALIGNMENT DONE
+	echo DECOMPOSITION DONE
 else
-	echo clustering alignment was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
-
-# if lowly abundant kmers are present, add them to <aligned>
-if [ -z "$LOW" ] # if exclude_low switch is off
-then
-	echo adding lowly abundant k-mers to input for clustering...
-	cat $WORKING_DIR/low_abund_kmers.csv >> $WORKING_DIR/aligned
-fi
-
 
 echo RUNNING PEAK CALLING
-$PYTHON $PEAKCALLING --k $K --aligned $WORKING_DIR/aligned_profiles --overview $WORKING_DIR/aligned_overview.csv --output_filename $WORKING_DIR/peaks.fasta $WINDOW $PROMINENCE $FORMAT $MINWIDTH $MAXWIDTH $DRAW
+$PYTHON $PEAKCALLING --assembled_path XXX --working_dir $WORKING_DIR --input_description $INPUT --k $K --threads 8 --output_path $WORKING_DIR/called_peaks.fasta
 if [ $? -eq 0 ]
 then
-	echo PEAK CALLING DONE
+	echo DECOMPOSITION DONE
 else
-	echo peak calling was unsuccesful, exiting
+	echo decomposition was unsuccesful, exiting
 	exit 1
 fi
+
+echo PAPERFLY RUN FINISHED, PEAKS STORED IN $WORKING_DIR/called_peaks.fasta

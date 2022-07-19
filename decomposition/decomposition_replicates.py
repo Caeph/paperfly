@@ -26,7 +26,7 @@ parser.add_argument("--minimal_abundance", default=None, type=int,
                     help="Minimal abundance of a k-mer. Should be lower for higher k-mers. "
                          "Note that lower abundance numbers lead to "
                          "higher data complexity and longer runtime."
-                         "If not specified, it is set as 75th percentile in the (non-unique) k-mer counts."
+                         "If not specified, it is set as 90th percentile in the (non-unique) k-mer counts."
                          "Percentile can be adjusted by the <--minimal_abundance_percentile> parameter (def. 75)")
 parser.add_argument("--minimal_abundance_percentile", default=90.0, type=float,
                     help="Defined percentile of sufficiently abundant kmers."
@@ -40,7 +40,7 @@ parser.add_argument("--draw", dest='draw', action='store_true',
                          "Has a time threshold, so extra large component may not be drawn.", )
 parser.add_argument("--no_store_low", dest='low_store', action='store_false',
                     help="Timesaving option. Skip saving low abundant k-mers.", )
-parser.add_argument("--no_controls", dest='available_controls', action='store_false',
+parser.add_argument("--no_controls", dest='available_controls', action='store_false', # todo check if works
                     help="Option to switch off inclusion of control experiment. "
                          "Links with empty column CONTROL in input description CSV")
 
@@ -110,7 +110,7 @@ def calculate_minimal_abundance(args, fastapath, percentile=75, cleanup=False):
     return int(min_abu)
 
 
-def run_prep(args, fastapath, controlpath, scaling_coef=0.95):
+def run_prep(args, fastapath, controlpath, scaling_coef=0.99):
     base_path = os.path.join(args.working_dir, os.path.split(fastapath)[1].split(".")[0])
     unitigs = prep.run_bcalm(fastapath, args.k, args.minimal_abundance * 2)
     shutil.move(unitigs, base_path + ".unitigs.fa")
@@ -148,6 +148,7 @@ def run_prep(args, fastapath, controlpath, scaling_coef=0.95):
 
         merged["updated_count"] = np.fmax(merged['count'] - merged['count_control'], 0).astype(int)
         merged = merged.drop(columns=['count', 'count_control'])
+        merged = merged[merged["updated_count"] > 0]
         merged.to_csv(jf_csv, header=False, index=False, sep=' ')
 
     if args.low_store:
@@ -160,6 +161,8 @@ def run_prep(args, fastapath, controlpath, scaling_coef=0.95):
 
     linked_unitigs = prep.link_jellyfish_counts(expanded, jf_csv, args.k)
     filtered = prep.filter_abundance(linked_unitigs, args.minimal_abundance, args.k)
+
+    filtered = prep.check_edges(filtered, args.k)
 
     compdir = prep.divide_to_components(filtered, comp_dir=os.path.join(args.working_dir, "components"),
                                         canonical=False)
@@ -183,16 +186,16 @@ def main(args):
             datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"),
             "_".join(
                 [*("{}={}".format(re.sub("(.)[^_]*_?", r"\1", key), value) for key, value in sorted(vars(args).items())
-                    if
-                    key not in ["working_dir", "input_fasta", "input_fastq", "control_filename"]), input_short]
-             )
-         )
+                   if
+                   key not in ["working_dir", "input_fasta", "input_fastq", "control_filename"]), input_short]
+            )
+        )
         print(f"The working dir was set as {args.working_dir}")
-    # os.makedirs(args.working_dir, exist_ok=False)
+    os.makedirs(args.working_dir, exist_ok=False)
 
     description = pd.read_csv(args.input_description, header=0, sep="\t")
-
-    # to fasta
+    #
+    # # to fasta
     fastq2fasta = {}
     for fastq in description["fastq"]:
         fastq2fasta[fastq] = get_path_to_fasta(fastq, args)
@@ -201,33 +204,36 @@ def main(args):
     for name, gr in control_groups:
         control2fasta[name] = get_path_to_fasta(name, args)
 
-    print("pooling treatment sequences")
     pooled_fasta = f"{args.working_dir}/pooled_sequences.fasta"
+    pooled_fasta = os.path.abspath(pooled_fasta)
+    print(f"pooling treatment sequences --> {pooled_fasta}")
     pool_sequences(pooled_fasta, fastq2fasta)
 
-    print("pooling control sequences")
     pooled_control = f"{args.working_dir}/pooled_control_sequences.fasta"
+    pooled_control = os.path.abspath(pooled_control)
+    print(f"pooling control sequences --> {pooled_control}")
     pool_sequences(pooled_control, control2fasta)
 
     # # calculate minimal abundance
     if args.minimal_abundance is None:
         overall_minimal_abundance = calculate_minimal_abundance(args,
-                                                                 pooled_fasta,
-                                                                 percentile=args.minimal_abundance_percentile,
-                                                                 cleanup=True)
+                                                                pooled_fasta,
+                                                                percentile=args.minimal_abundance_percentile,
+                                                                cleanup=True)
         args.minimal_abundance = overall_minimal_abundance
     else:
         args.minimal_abundance = args.minimal_abundance
-        # # prune based on counts
+        # prune based on counts
+
     components_path = run_prep(args, pooled_fasta, pooled_control)
     strongly_connected_components_description(components_path)
 
     # prepare counts on individual treatment and control files
     if_filename = f"{args.working_dir}/present_kmers.fa"
     with open(if_filename, 'w') as iffile:
-        for line in open(f"{args.working_dir}/low_abund_kmers.csv"):
-            sq = line.strip('\n').split(";")[0]
-            iffile.write(f">1\n{sq}\n")
+        if args.low_store:
+            for entry in pyfastaq.sequences.file_reader(f"{args.working_dir}/low_abund_kmers.fasta"):
+                iffile.write(f">{entry.id}\n{entry.seq}\n")
         for entry in pyfastaq.sequences.file_reader(f"{args.working_dir}/mers.unitigs.{args.k}.fa"):
             iffile.write(f">{entry.id}\n{entry.seq}\n")
 
@@ -249,6 +255,16 @@ def main(args):
                                  )
 
     # do cleanup
+    seen = os.listdir(args.working_dir)
+
+    to_remove = [x for x in seen if (x[-5:] == "fasta") and (x != "low_abund_kmers.fasta")]
+    to_remove.extend([x for x in seen if x[-3:] == "tmp"])
+    to_remove.extend([x for x in seen if x[-2:] == "fa"])
+    to_remove.extend([x for x in seen if x[-2:] == "jf"])
+    for item in to_remove:
+        path = os.path.join(args.working_dir, item)
+        os.remove(path)
+
 
 if __name__ == '__main__':
     args = parser.parse_args([] if "__file__" not in globals() else None)

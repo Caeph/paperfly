@@ -24,10 +24,17 @@ def store_low_abundace_kmers(counts_csv, min_abundance, k, directory=None):
     counts_df = pd.read_csv(counts_csv, sep=' ', header=None)
     counts_df.columns = ['kmer', 'count']
     counts_df = counts_df[(counts_df['count'] < min_abundance) & (counts_df['count'] > 0)]
-    counts_df['count'] = counts_df['count'].map(lambda x : ','.join([str(x) for item in range(k)]))
+    # counts_df['count'] = counts_df['count'].map(lambda x: ','.join([str(x) for item in range(k)]))
 
-    low_abund_name = f"{dir}low_abund_kmers.csv"
-    counts_df.to_csv(low_abund_name, header=False, index=False, sep=';')
+    # low_abund_name = f"{dir}low_abund_kmers.csv"
+    # counts_df.to_csv(low_abund_name, header=False, index=False, sep=';')
+    low_abund_name = os.path.join(dir, "low_abund_kmers.fasta")
+    with open(low_abund_name, mode="w") as writer:
+        for i, row in counts_df.iterrows():
+            count = row["count"]
+            print(f">{i}_count_{count}", file=writer)
+            print(row.kmer, file=writer)
+
     return low_abund_name
 
 
@@ -72,7 +79,7 @@ def get_all_kmer_counts(source_path, k, directory, outputpath, iffile):
 
     print("\tdumping to csv")
     process = subprocess.run(
-        [f"{jellyfish_path} dump {output_tmp} > {outputpath}"],
+        [f"{jellyfish_path} dump -c {output_tmp} > {outputpath}"],
         shell=True)
     evaluate_process(process)
 
@@ -107,8 +114,13 @@ def run_bcalm(input, k, abu, stub=False):
     outputname = input.split('/')[-1].split('.')[0] + ".unitigs.fa"
     if stub:
         return outputname
-    process = subprocess.run([f"{bcalm_path} -in {input} -kmer-size {k} -abundance-min {abu}"],
-                             shell=True)
+    cmd = f"{bcalm_path} -in {input} -kmer-size {k} -abundance-min {abu}"
+    # cmd = ["", "bcalm",
+    #        "-in", input,
+    #        "-kmer-size", str(k),
+    #        "-abundance-min", str(abu)]
+    print(cmd)
+    process = subprocess.run(cmd, shell=True)
     evaluate_process(process)
     return outputname
 
@@ -394,7 +406,41 @@ def filter_abundance_simple(input, tmp_outfile, req_abu):
         outfile.write("%s\n" % entry.seq)
 
     outfile.close()
-    ### \first walkthrough
+
+
+def sign(x):
+    if x < 0:
+        return '-'
+    return '+'
+
+
+def check_edges(input, k):
+    G = debruijn_fasta_to_digraph(input, extended_data=True)
+    # check every edge if overlaps completely, otherwise remove
+
+    to_remove = []
+    for e in G.edges():
+        from_, to_ = e
+        a = G.nodes[from_]["sq"][-(k-1):]
+        b = G.nodes[to_]["sq"][:k-1]
+        if a != b:
+            to_remove.append(e)
+
+    G.remove_edges_from(to_remove)
+    outfile = f"{input}_checked.fasta"
+
+    with open(outfile, mode='w') as writer:
+        for node in G.nodes:
+            sq = G.nodes[node]["sq"]
+            allcounts = G.nodes[node]["counts"]
+            totalcount = sum(allcounts)
+            meancount = totalcount / len(allcounts)
+            allcounts = ",".join([str(x) for x in allcounts])
+            edges = " ".join([f"L:{sign(from_)}:{abs(to_)}:{sign(to_)}" for from_, to_ in G.out_edges(node)])
+            print(f">{node} LN:i:{len(sq)} KC:i:{totalcount} km:f:{meancount} {allcounts} {edges}", file=writer)
+            print(sq, file=writer)
+
+    return outfile
 
 
 def filter_abundance(input, req_abu, k, tmp_outfile='filtered_unitigs.tmp',
@@ -517,6 +563,7 @@ def filter_abundance(input, req_abu, k, tmp_outfile='filtered_unitigs.tmp',
     for fl in [tmp_outfile, buffer_name]:
         os.remove(fl)
     return outputname
+
 
 def draw_components(compdir, req_abu, picdir=None, canonical=False, skip_linear=False):
     if picdir is None:

@@ -84,12 +84,9 @@ namespace SamplerEulerian
             {
                 int bottleneckCount;
                 var paths = getPathsFromIteration(out bottleneckCount);
+
                 var processedPaths = processPaths(paths, bottleneckCount).ToList();
                 write(processedPaths, outputPath);
-                //report(report_step, i);
-                
-                if ((deBruijnGraph.Graph.VertexCount == 1007) && (deBruijnGraph.Graph.EdgeCount == 1122))
-                {}
 
                 actualize(processedPaths, outputPath);
                 report(report_step, i);
@@ -374,15 +371,6 @@ namespace SamplerEulerian
                 {
                     continue; //that is empty
                 }
-
-                /*if (typeof(WalkthroughNode) == condensationNode.GetType())
-                {
-                    var walkthrough = condensationNode.Vertices;
-                    graphVertices.AddRange(walkthrough);
-                }
-                //otherwise -- single
-                var componentID = condensationNode.ID;
-                graphVertices.AddRange(structures.ComponentToMembers[componentID]);*/
                 var walkthrough = condensationNode.Vertices;
                 graphVertices.AddRange(walkthrough);
             }
@@ -407,10 +395,6 @@ namespace SamplerEulerian
             
             foreach (var condNode in savedPath)
             {
-                //spocitat, kolikrat se kterej vrchol objevuje
-                //var occurences = condNode.Vertices.GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
-                
-                //var lowestCount = condNode.Vertices.Min(v => deBruijnGraph.MinCounts[v] / occurences[v]); //nody se v ceste mohou opakovat, count se rovnomerne rozdeli
                 var lowestCount = condNode.Vertices.Min(v => deBruijnGraph.MinCounts[v]);
                 if (lowestCount < bottleneckWidth)
                 {

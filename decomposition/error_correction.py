@@ -465,6 +465,9 @@ def signum(no):
         return ""
 
 
+emptyline = "".join([" " for i in range(200)])
+
+
 def process_component(filename, contracted_info, output_file, args, bub_done, comp_done):
     # print(filename)
     try:
@@ -490,6 +493,7 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
         while graph is not None:
             new_graph, all_dists = identify_contract_bubble(graph, args.k, max_bubble_length,
                                                             contracted_info, all_dists)
+            # print(emptyline, end='\r')
             print(f"now processing {filename}; already processed components: {comp_done}, corrected bubbles {bub_done + bubbles} ({bubbles} in current)", end='\r')
             # if graph is none, keep the old graph as the output one
             if new_graph is not None:

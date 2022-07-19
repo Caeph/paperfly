@@ -35,9 +35,12 @@ A Dockerfile is also available. If you are using it, please note that the recomm
 I also recommend you check it out if you are using Ubuntu 20.04, as you could run into problems when installing mono and msbuild.
 
 # Running
+
+These parameters are valid for the latest package. We are currently reworking parts of the software. Once ready, some changes to parameter setting will be done.
+
 To run the program when it is in your path, use
 ```
-paperfly --input_fast<q|a> <input filename> --k <k> --control_file <control filename>
+paperfly --input_description <csv file> --input_directory <path to directory with all input files> --k <k> --control_file <control filename>
 ```
 The input and the control file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads. We recommend you start with k=+-30.
 The order of the parameters is not fixed.
