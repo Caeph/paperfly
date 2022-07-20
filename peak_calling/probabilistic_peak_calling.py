@@ -83,6 +83,9 @@ def main(args):
     control = df_desc["control"].unique()
     all_files = list(treatments) + list(control)
 
+    # bonferroni correction:
+    pvalue = pvalue / len(treatments)
+
     counts_df = None
     for file in all_files:
         if file in control:

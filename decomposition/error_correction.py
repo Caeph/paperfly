@@ -368,13 +368,13 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
 class dijkstraer:
     def __init__(self, G, max_bubble):
         self.graph = G
-        self.max_bubble = max_bubble
+        self.max_bubble = max_bubble + 1
 
     def calc_distances(self, s):
         dists = nx.single_source_dijkstra_path_length(self.graph,
                                                       s,
                                                       weight="extension",
-                                                      cutoff=1.01 * self.max_bubble)
+                                                      cutoff=self.max_bubble)
         # dists = sorted(dists.items(), key=lambda x: x[1])
         return dists
 
@@ -473,7 +473,7 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
     try:
         k = args.k
         if args.max_bubble_sequence is None:
-            max_bubble_length = 2 * (k - 1) + 2 * k
+            max_bubble_length = 2 * k
         else:
             max_bubble_length = args.max_bubble_sequence
             # max length of sequence represented in a bubble
@@ -484,16 +484,12 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
         graph = orig_graph
         graph.remove_edges_from(nx.selfloop_edges(graph))
         output_graph = graph
-        # forbidden = {}  # storing endpoints of too dissimilar bubbles
-        # for item in graph.nodes:
-        #    forbidden[item] = set()
         all_dists = {}
 
         bubbles = 0
         while graph is not None:
             new_graph, all_dists = identify_contract_bubble(graph, args.k, max_bubble_length,
                                                             contracted_info, all_dists)
-            # print(emptyline, end='\r')
             print(f"now processing {filename}; already processed components: {comp_done}, corrected bubbles {bub_done + bubbles} ({bubbles} in current)", end='\r')
             # if graph is none, keep the old graph as the output one
             if new_graph is not None:
