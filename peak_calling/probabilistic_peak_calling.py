@@ -286,7 +286,7 @@ def main(args):
 
                 if true_treatment >= len(treatment_cols) * 0.5:
                     # this is a peak
-                    p_val_score = np.max(segment_pvals)
+                    p_val_score = np.sum(segment_pvals)
                     peak_segments[start:stop] = p_val_score
 
             peak_segments_states = np.zeros(len(Y))

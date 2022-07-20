@@ -233,7 +233,6 @@ def main(args):
     components_path = run_prep(args, fastapath)
     strongly_connected_components_description(components_path)
 
-    # todo cleanup
 
 
 if __name__ == '__main__':
