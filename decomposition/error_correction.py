@@ -473,7 +473,7 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
     try:
         k = args.k
         if args.max_bubble_sequence is None:
-            max_bubble_length = 2 * k
+            max_bubble_length = 3 * k
         else:
             max_bubble_length = args.max_bubble_sequence
             # max length of sequence represented in a bubble

@@ -14,11 +14,16 @@ import numpy as np
 from statistics import strongly_connected_components_description
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--input_description", default=None, type=str,
-                    help="Path to a description of the experiment in the TSV format (columns FASTQ and CONTROL, "
-                         "tab separator). In both columns, filenames (without path) should be indicated.")
-parser.add_argument("--input_directory", default=None, type=str,
-                    help="Path to the directory that contains ALL the inputs -- both treatment and control files.")
+# parser.add_argument("--input_description", default=None, type=str,
+#                     help="Path to a description of the experiment in the TSV format (columns FASTQ and CONTROL, "
+#                          "tab separator). In both columns, filenames (without path) should be indicated.")
+# parser.add_argument("--input_directory", default=None, type=str,
+#                     help="Path to the directory that contains ALL the inputs -- both treatment and control files.")
+parser.add_argument("--input_filename", default=None, type=str,
+                    help="Path to the treatment replicate reads (fastq|fastq.gz|fasta).")
+parser.add_argument("--control_filename", default=None, type=str,
+                    help="Path to the control replicate reads (fastq|fastq.gz|fasta).")
+
 parser.add_argument("--working_dir", default=None, type=str, help="Path to the working directory. If directory "
                                                                   "exists, error will be raised.")
 parser.add_argument("--k", default=31, type=int, help="Size of the k-mer created by BCALM. Defaults at 31.")
@@ -40,9 +45,9 @@ parser.add_argument("--draw", dest='draw', action='store_true',
                          "Has a time threshold, so extra large component may not be drawn.", )
 parser.add_argument("--no_store_low", dest='low_store', action='store_false',
                     help="Timesaving option. Skip saving low abundant k-mers.", )
-parser.add_argument("--no_controls", dest='available_controls', action='store_false', # todo check if works
-                    help="Option to switch off inclusion of control experiment. "
-                         "Links with empty column CONTROL in input description CSV")
+# parser.add_argument("--no_controls", dest='available_controls', action='store_false',  # does not work at the moment
+#                     help="Option to switch off inclusion of control experiment. "
+#                          "Links with empty column CONTROL in input description CSV")
 
 
 def get_fasta_from_fastq(fastqfile, args):
@@ -68,8 +73,8 @@ def get_fasta_from_fastq(fastqfile, args):
     return path_to_fasta
 
 
-def get_path_to_fasta(ident, args):
-    path = f"{args.input_directory}/{ident}"
+def get_path_to_fasta(path, args):
+    # path = f"{args.input_directory}/{ident}"
     if (path[-9:] == ".fastq.gz") or (path[-6:] == ".fastq"):
         path_to_fasta = get_fasta_from_fastq(path, args)
     elif path[-6:] == ".fasta":
@@ -173,7 +178,7 @@ def run_prep(args, fastapath, controlpath, scaling_coef=0.99):
 
 
 def main(args):
-    for item in [args.input_description, args.input_directory]:
+    for item in [args.input_filename, args.control_filename]:
         if item is None:
             print("No input given, exiting.")
             exit(1)
@@ -193,31 +198,16 @@ def main(args):
         print(f"The working dir was set as {args.working_dir}")
     os.makedirs(args.working_dir, exist_ok=False)
 
-    description = pd.read_csv(args.input_description, header=0, sep="\t")
-    #
-    # # to fasta
-    fastq2fasta = {}
-    for fastq in description["fastq"]:
-        fastq2fasta[fastq] = get_path_to_fasta(fastq, args)
-    control2fasta = {}
-    control_groups = description.groupby(by="control")
-    for name, gr in control_groups:
-        control2fasta[name] = get_path_to_fasta(name, args)
+    input_name = args.input_filename
+    input_name = get_path_to_fasta(input_name, args)
 
-    pooled_fasta = f"{args.working_dir}/pooled_sequences.fasta"
-    pooled_fasta = os.path.abspath(pooled_fasta)
-    print(f"pooling treatment sequences --> {pooled_fasta}")
-    pool_sequences(pooled_fasta, fastq2fasta)
-
-    pooled_control = f"{args.working_dir}/pooled_control_sequences.fasta"
-    pooled_control = os.path.abspath(pooled_control)
-    print(f"pooling control sequences --> {pooled_control}")
-    pool_sequences(pooled_control, control2fasta)
+    control_name = args.control_filename
+    control_name = get_path_to_fasta(control_name, args)
 
     # # calculate minimal abundance
     if args.minimal_abundance is None:
         overall_minimal_abundance = calculate_minimal_abundance(args,
-                                                                pooled_fasta,
+                                                                input_name,
                                                                 percentile=args.minimal_abundance_percentile,
                                                                 cleanup=True)
         args.minimal_abundance = overall_minimal_abundance
@@ -225,7 +215,7 @@ def main(args):
         args.minimal_abundance = args.minimal_abundance
         # prune based on counts
 
-    components_path = run_prep(args, pooled_fasta, pooled_control)
+    components_path = run_prep(args, input_name, control_name)
     strongly_connected_components_description(components_path)
 
     # prepare counts on individual treatment and control files
@@ -237,20 +227,12 @@ def main(args):
         for entry in pyfastaq.sequences.file_reader(f"{args.working_dir}/mers.unitigs.{args.k}.fa"):
             iffile.write(f">{entry.id}\n{entry.seq}\n")
 
-    for item in fastq2fasta:
-        path = fastq2fasta[item]
+    for item, label in zip([input_name, control_name], ["treatment", "control"]):
+        path = item
         prep.get_all_kmer_counts(path,
                                  args.k,
                                  args.working_dir,
-                                 f"{args.working_dir}/{item}.csv",
-                                 if_filename
-                                 )
-    for item in control2fasta:
-        path = control2fasta[item]
-        prep.get_all_kmer_counts(path,
-                                 args.k,
-                                 args.working_dir,
-                                 f"{args.working_dir}/{item}.csv",
+                                 f"{args.working_dir}/{label}.csv",
                                  if_filename
                                  )
 

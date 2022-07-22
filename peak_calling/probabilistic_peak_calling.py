@@ -13,9 +13,16 @@ import argparse
 from scipy.stats import mannwhitneyu
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--assembled_path", default=None, type=str, help="Path to aligned profiles.")  # aligned_corrected.csv
+parser.add_argument("--assembled_path", default=None, type=str,
+                    help="Path to aligned profiles.")  # aligned_corrected.csv
 parser.add_argument("--working_dir", default=None, type=str, help="Path to working directory")
-parser.add_argument("--input_description", default=None, type=str, help="")  # input -- "ENCSR413CVQ.csv"
+# parser.add_argument("--input_description", default=None, type=str, help="")  # input -- "ENCSR413CVQ.csv"
+
+parser.add_argument("--treatment_counts", default=None, type=str,
+                    help="Treatment k-mers counts file name (csv, not path).")
+parser.add_argument("--control_counts", default=None, type=str, help="Control k-mers counts file name (csv, not path).")
+parser.add_argument("--problems_no", default=None, type=int, help="Number of replicates for Bonferroni correction.")
+
 parser.add_argument("--k", default=None, type=int, help="K-mer size")
 parser.add_argument("--draw", dest='draw', action='store_true',
                     help="Draw profiles with count and HMM-based separation. Optional.", )
@@ -25,7 +32,7 @@ parser.add_argument("--output_path", default=None, type=str,
 parser.add_argument("--pvalue_threshold", default=0.1, type=float, help="P-value: significance threshold for a peak to "
                                                                         "be reported. Default: 10%.")
 
-states = 5
+states = 3
 
 pseudocount = 0.01
 scaling_coef = 0.99
@@ -58,12 +65,12 @@ def get_positions_vectors(length, last, aggr_counts, k):
 
 
 def main(args):
-    for item in [args.assembled_path, args.working_dir, args.input_description, args.output_path]:
+    for item in [args.assembled_path, args.working_dir, args.treatment_counts, args.control_counts,
+                 args.problems_no, args.output_path]:
         if item is None:
             print("Insufficient input, exiting.")
             exit(1)
 
-    input_description = args.input_description
     working_dir = args.working_dir
     assembled_sqs_file = args.assembled_path
     processes = args.threads
@@ -71,41 +78,38 @@ def main(args):
     k = args.k
     pvalue = args.pvalue_threshold
 
+    problems_no = args.problems_no
+    treatment_filename = args.treatment_counts
+    control_filename = args.control_counts
+
     profiles_pictures = os.path.join(working_dir, "profiles_pics")
 
-    df_desc = pd.read_csv(input_description, sep="\t")
-    # for col in ["fastq", "control"]:
-    #     df_desc[col] = df_desc[col].str.replace("fastq.gz", "fasta", regex=False).str.replace("fastq", "fasta", regex=False)
-
-    tr_to_ctrl = {rdict["fastq"]: rdict["control"] for rdict in df_desc.to_dict(orient="records")}
-
-    treatments = df_desc["fastq"].unique()
-    control = df_desc["control"].unique()
-    all_files = list(treatments) + list(control)
+    # df_desc = pd.read_csv(input_description, sep="\t")
+    # tr_to_ctrl = {rdict["fastq"]: rdict["control"] for rdict in df_desc.to_dict(orient="records")}
+    # treatments = df_desc["fastq"].unique()
+    # control = df_desc["control"].unique()
+    # all_files = list(treatments) + list(control)
 
     # bonferroni correction:
-    pvalue = pvalue / len(treatments)
+    pvalue = pvalue / problems_no
 
     counts_df = None
-    for file in all_files:
-        if file in control:
-            label = "control"
-        else:
-            label = "treatment"
-
-        counts = pd.read_csv(os.path.join(working_dir, file + ".csv"), sep=' ', header=None)
+    for file, label in zip([treatment_filename, control_filename], ["treatment", "control"]):
+        counts = pd.read_csv(os.path.join(working_dir, file), sep=' ', header=None)
         counts.columns = ["seq", label + "_" + file]
         if counts_df is None:
             counts_df = counts
         else:
             counts_df = pd.merge(counts_df, counts, how="outer", on="seq")
 
+    tr_to_ctrl = {treatment_filename : control_filename}
+
     assembled = pd.read_csv(assembled_sqs_file, sep=";", header=None)
     assembled.columns = ["assembled", "counts"]
     assembled["counts"] = assembled["counts"].apply(lambda x: [int(y) for y in x.split(",")])
 
-    treatment_cols = ["treatment" + "_" + x for x in treatments]
-    control_cols = ["control" + "_" + x for x in control]
+    treatment_cols = ["treatment" + "_" + x for x in [treatment_filename]]
+    control_cols = ["control" + "_" + x for x in [control_filename]]
 
     if scale_controls:
         scale = counts_df[treatment_cols].values.sum() / counts_df[control_cols].values.sum()
@@ -214,7 +218,7 @@ def main(args):
         # blocks_states = np.array([st for st, group in groupby(states)])
         starts = np.hstack([[0], block_lengths.cumsum()])[:-1]
 
-        return np.vstack([starts, starts+block_lengths]).T
+        return np.vstack([starts, starts + block_lengths]).T
 
     if draw:
         os.makedirs(profiles_pictures, exist_ok=True)
@@ -248,7 +252,7 @@ def main(args):
             # X = Y
             smooth_predictions = get_segments(Y, states)
             if smooth_predictions is None:
-                trial = get_segments(Y, states-1)
+                trial = get_segments(Y, states - 1)
                 if trial is None:
                     smooth_predictions = np.zeros(len(Y))
                 else:
