@@ -13,6 +13,7 @@ ASSEMBLER="$PAPERFLYPATH/pseudoassembly/SamplerEulerianEfficient"
 EXACTMATCHING="$PAPERFLYPATH/alignment/exact_match/Aligner3"
 CLUSTERING_SCRIPT="$PAPERFLYPATH/alignment/profiles/align_blast.py"
 PEAKCALLING="$PAPERFLYPATH/peak_calling/probabilistic_peak_calling.py"
+REPLICATECALLING="$PAPERFLYPATH/peak_calling/compare_replicate_peaks.py"
 
 print_help () {
   echo "This is PAPerFly, the Partial Assembly-based Peak-Finder, version $VERSION".
@@ -21,13 +22,14 @@ print_help () {
   echo
 
   echo "Parameters:"
-  echo "--input_description: path to a csv file (filename, not whole path) describing treatment vs. control relationships for replicates."
+  echo "--input_description: path to a csv file (filename, not whole path) describing treatment vs. control relationships for replicates. First line of this file should be \"fastq\\tcontrol\""
   echo "--input_directory: path to a directory with all input files. Cannot be current directory."
   echo "--k: k-mer length for sliding window probing of the sequencing data. Cannot be a multiple of 4 (BCALM property)."
   echo "--working_dir: path to a working directory. Must not exist, otherwise exception is thrown."
   echo "--minimal_abundance: minimal abundance of a k-mer. Should be lower for higher k-mers. Note that lower abundance numbers lead to higher data complexity and longer runtime.If not specified, it is set as 90th percentile in the (non-unique) k-mer counts. Percentile can
                         be adjusted by the --minimal_abundance_percentile parameter."
-  echo "--minimal_abundance_percentile: defined percentile of sufficiently abundant kmers. This calculation is time-consuming, but comes in handy if you don\'t know much about the input data size. BCALM also makes a number of temporary files during the calculation. These will be removed afterwards."
+  echo "--minimal_abundance_percentile: defined percentile of sufficiently abundant kmers. This calculation is time-consuming, but comes in handy if you don\'t know much about the input data size.
+  BCALM also makes a number of temporary files during the calculation. These will be removed afterwards. Default option, 95th percentile."
   echo "--minimal_abundance_mapping: abundance threshold of a low abundance kmer count to be considered a sequencing error. Default: 10."
   echo "--assembly_report_step: number of steps after which time and graph state are reported during pseudoassembly. Default: 250."
   echo "--draw: option to draw the components graphs and graphs of assembled profile enrichments."
@@ -36,10 +38,89 @@ print_help () {
   echo "--miss_percentage: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 85"
 }
 
+run_on_replicate () {
+  TREATMENT="$1"
+  CONTROL="$2"
+  REPLICATE="$3"
+  WORKING_DIR="$OVERALL_WORKING_DIR"/replicate_"$3"
+
+  echo RUNNING DECOMPOSITION
+  $PYTHON "$DECOMPOSITION" --k $K --input_filename $TREATMENT --control_filename $CONTROL --working_dir "$WORKING_DIR" $DRAW $ABU $LOW
+
+  if [ $? -eq 0 ]
+  then
+    echo DECOMPOSITION DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo ERROR CORRECTION
+  $PYTHON "$ERRORCORRECTION" --k $K --raw_components "$WORKING_DIR"/components --corrected_components "$WORKING_DIR"/corrected --replaced "$WORKING_DIR"/replaced.tsv
+  if [ $? -eq 0 ]
+  then
+    echo ERROR CORRECTION DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo SECONDARY DECOMPOSITION
+  cat "$WORKING_DIR"/corrected/* >"$WORKING_DIR"/corrected_graph.unitigs.fasta
+  $PYTHON "$SECDECOMPOSITION" --corrected_graph "$WORKING_DIR"/corrected_graph.unitigs.fasta --corrected_components "$WORKING_DIR"/corrected_decomposed
+  if [ $? -eq 0 ]
+  then
+    echo SECONDARY DECOMPOSITION DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo RUNNING PARTIAL ASSEMBLY
+  mono "$ASSEMBLER"/bin/Release/SamplerEulerianEfficient.exe --input_path "$WORKING_DIR"/corrected_decomposed --k $K --output_path "$WORKING_DIR"/assemblies --report_step $REPORT_STEP --single_item false
+  if [ $? -eq 0 ]
+  then
+    echo PARTIAL ASSEMBLY DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo RUNNING EXACT MATCH MAPPING
+  mono "$EXACTMATCHING"/bin/Release/Aligner3.exe "$WORKING_DIR"/assemblies "$WORKING_DIR"/aligned $K
+  if [ $? -eq 0 ]
+  then
+    echo EXACT MATCH MAPPING DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo RUNNING ALIGNMENT
+  $PYTHON "$CLUSTERING_SCRIPT" --perc_identity $MISS --k $K --working_dir "$WORKING_DIR" --min_abundance_mapping $MIN_ABU_MAPPING
+  if [ $? -eq 0 ]
+  then
+    echo ALIGNMENT DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+
+  echo RUNNING PEAK CALLING
+  $PYTHON "$PEAKCALLING" --assembled_path "$WORKING_DIR"/aligned_corrected.csv --working_dir "$WORKING_DIR" --treatment_counts treatment.csv --control_counts control.csv --k $K --threads 8 --output_path "$WORKING_DIR"/called_peaks.fasta --problems_no "$REPLICATES_NO"
+  if [ $? -eq 0 ]
+  then
+    echo PEAK CALLING DONE
+  else
+    echo decomposition was unsuccesful, exiting
+    exit 1
+  fi
+}
+
 # should fit to the params of the scripts
 MISS=85  # miss_percentage
 K=""  # k
-WORKING_DIR=""  # working_dir
+OVERALL_WORKING_DIR=""  # working_dir
 MIN_ABU_MAPPING=10  # minimal_abundance_mapping
 REPORT_STEP=250  # assembly_report_step
 INPUT=""  # csv file with description, input_description
@@ -47,6 +128,8 @@ INPUT_DIR=""  # input_directory
 DRAW=""  # draw
 ABU=""  # minimal_abundance OR minimal_abundance_percentile
 LOW=""  # no_store_low
+PARTNERTHR="0.1"
+REPLICATES_NO=1
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -143,10 +226,10 @@ then
 	exit 1
 fi
 
-if [ -z "$WORKING_DIR" ]
+if [ -z "$OVERALL_WORKING_DIR" ]
 then
 	dt=$(date +%d%m%Y_%H%M%S);
-	WORKING_DIR=$(echo "output_paperfly_$dt")
+	OVERALL_WORKING_DIR=$(echo "output_paperfly_$dt")
 fi
 
 # INPUT: if minimal_abundance available, use it, otherwise use percentile.
@@ -157,7 +240,7 @@ elif ! [ -z "$MINIMAL_PERCENTILE" ]
 then
 	ABU=$(echo --minimal_abundance_percentile $MINIMAL_PERCENTILE)
 else
-  ABU=""  # use default parameters
+  ABU="--minimal_abundance_percentile 95"  # use default parameters
 fi
 
 echo "Parameter recap:"
@@ -166,83 +249,24 @@ echo "--input_directory $INPUT_DIR"
 echo "--k $K"
 echo "$ABU"
 echo "--assembly_report_step $REPORT_STEP"
-echo "--working_dir $WORKING_DIR"
+echo "--working_dir $OVERALL_WORKING_DIR"
 echo "--miss_percentage $MISS"
 echo "--minimal_abundance_mapping $MIN_ABU_MAPPING"
 echo "$DRAW"
 echo "$LOW"
 
 # run program
-echo RUNNING DECOMPOSITION
-$PYTHON $DECOMPOSITION --k $K --input_description $INPUT --input_directory $INPUT_DIR --working_dir $WORKING_DIR $DRAW $ABU $LOW
+i=1  # replicate i
+REPLICATES_NO=$(cat $INPUT | sed "s/\t/;/g" | tail +2 | wc -l)
+for line in $(cat $INPUT | sed "s/\t/;/g" | tail +2)
+do
+  treatment=$(echo $line | cut -d';' -f1)
+  control=$(echo $line | cut -d';' -f2)
 
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
+  run_on_replicate "$INPUT_DIR"/"$treatment" "$INPUT_DIR"/"$control" "$i"
+  (( i++ ))
+done
 
-echo ERROR CORRECTION
-$PYTHON $ERRORCORRECTION --k $K --raw_components $WORKING_DIR/components --corrected_components $WORKING_DIR/corrected --replaced $WORKING_DIR/replaced.tsv
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
+$PYTHON "$REPLICATECALLING" $PARTNERTHR "$OVERALL_WORKING_DIR/replicated_peaks.fasta" $(ls "$OVERALL_WORKING_DIR"/replicate*/called_peaks.fasta)
 
-echo SECONDARY DECOMPOSITION
-cat $WORKING_DIR/corrected/* >$WORKING_DIR/corrected_graph.unitigs.fasta
-$PYTHON $SECDECOMPOSITION --corrected_graph $WORKING_DIR/corrected_graph.unitigs.fasta --corrected_components $WORKING_DIR/corrected_decomposed
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
-
-echo RUNNING PSEUDOASSEMBLY
-mono $ASSEMBLER/bin/Release/SamplerEulerianEfficient.exe --input_path $WORKING_DIR/corrected_decomposed --k $K --output_path $WORKING_DIR/assemblies --report_step $REPORT_STEP --single_item false
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
-
-echo RUNNING EXACT MATCH MAPPING
-mono $EXACTMATCHING/bin/Release/Aligner3.exe $WORKING_DIR/assemblies $WORKING_DIR/aligned $K
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
-
-echo RUNNING ALIGNMENT
-$PYTHON $CLUSTERING_SCRIPT --perc_identity $MISS --k $K --working_dir $WORKING_DIR --min_abundance_mapping $MIN_ABU_MAPPING
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
-
-echo RUNNING PEAK CALLING
-$PYTHON $PEAKCALLING --assembled_path XXX --working_dir $WORKING_DIR --input_description $INPUT --k $K --threads 8 --output_path $WORKING_DIR/called_peaks.fasta
-if [ $? -eq 0 ]
-then
-	echo DECOMPOSITION DONE
-else
-	echo decomposition was unsuccesful, exiting
-	exit 1
-fi
-
-echo PAPERFLY RUN FINISHED, PEAKS STORED IN $WORKING_DIR/called_peaks.fasta
+echo PAPERFLY RUN FINISHED, PEAKS STORED IN "$OVERALL_WORKING_DIR/replicated_peaks.fasta"
