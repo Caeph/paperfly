@@ -166,7 +166,7 @@ while [[ $# -gt 0 ]]; do
       shift # past value
       ;;
     --working_dir)
-      WORKING_DIR="$2"
+      OVERALL_WORKING_DIR="$2"
       shift # past argument
       shift # past value
       ;;
