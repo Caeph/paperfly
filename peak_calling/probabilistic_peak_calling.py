@@ -299,11 +299,12 @@ def main(args):
                                    show=False)
 
             # print peak sequence to file
-            # peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
-            #                peak_segments_states[start] == 1]
+            peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
+                           peak_segments_states[start] == 1]
+            # peak_ranges = get_state_ranges(peak_segments_states)
 
             peak_i = 1
-            for start, end in get_state_ranges(peak_segments_states):
+            for start, end in peak_ranges:
                 if (end - start) < k:
                     # too short
                     continue
