@@ -17,7 +17,6 @@ parser.add_argument("--assembled_path", default=None, type=str,
                     help="Path to aligned profiles.")  # aligned_corrected.csv
 parser.add_argument("--working_dir", default=None, type=str, help="Path to working directory")
 # parser.add_argument("--input_description", default=None, type=str, help="")  # input -- "ENCSR413CVQ.csv"
-
 parser.add_argument("--treatment_counts", default=None, type=str,
                     help="Treatment k-mers counts file name (csv, not path).")
 parser.add_argument("--control_counts", default=None, type=str, help="Control k-mers counts file name (csv, not path).")
@@ -30,13 +29,12 @@ parser.add_argument("--threads", default=1, type=int, help="")
 parser.add_argument("--output_path", default=None, type=str,
                     help="Path to output file (will be overwritten if exists).")
 parser.add_argument("--pvalue_threshold", default=0.1, type=float, help="P-value: significance threshold for a peak to "
-                                                                        "be reported. Default: 10%.")
-
-states = 3
+                                                                        "be reported. Default: 0.1.")
+parser.add_argument("--states", default=3, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5.")
 
 pseudocount = 0.01
 scaling_coef = 0.99
-states_len_thr = 2
+states_len_thr = 0
 scale_controls = True
 pval_rounding_thr = 10e-8
 
@@ -71,6 +69,12 @@ def main(args):
             print("Insufficient input, exiting.")
             exit(1)
 
+    states = args.states
+    allowed_states = set([2,3,4,5])
+    if states not in allowed_states:
+        print("Allowed state numbers are 2, 3, 4, 5.")
+        exit(1)
+
     working_dir = args.working_dir
     assembled_sqs_file = args.assembled_path
     processes = args.threads
@@ -83,12 +87,6 @@ def main(args):
     control_filename = args.control_counts
 
     profiles_pictures = os.path.join(working_dir, "profiles_pics")
-
-    # df_desc = pd.read_csv(input_description, sep="\t")
-    # tr_to_ctrl = {rdict["fastq"]: rdict["control"] for rdict in df_desc.to_dict(orient="records")}
-    # treatments = df_desc["fastq"].unique()
-    # control = df_desc["control"].unique()
-    # all_files = list(treatments) + list(control)
 
     # bonferroni correction:
     pvalue = pvalue / problems_no
@@ -244,7 +242,6 @@ def main(args):
                     # catch ValueError: transmat_ rows must sum to 1 (got [1. 0.])
                     # print(f"Skipping profile {profile_i}, value error occured")
                     return None
-
         return smooth_predictions
 
     with open(args.output_path, mode='w') as peaks_writer:
@@ -290,7 +287,7 @@ def main(args):
 
                 if true_treatment >= len(treatment_cols) * 0.5:
                     # this is a peak
-                    p_val_score = np.sum(segment_pvals)
+                    p_val_score = np.max(segment_pvals)
                     peak_segments[start:stop] = p_val_score
 
             peak_segments_states = np.zeros(len(Y))
@@ -302,13 +299,16 @@ def main(args):
                                    show=False)
 
             # print peak sequence to file
-            peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
-                           peak_segments_states[start] == 1]
+            # peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
+            #                peak_segments_states[start] == 1]
 
             peak_i = 1
-            for start, end in peak_ranges:
+            for start, end in get_state_ranges(peak_segments_states):
                 if (end - start) < k:
                     # too short
+                    continue
+                if peak_segments_states[start] != 1:
+                    # did not pass MWU
                     continue
                 # print(start,end)
                 peak_sq = assembled.iloc[profile_i]["assembled"][start:end]
