@@ -10,51 +10,12 @@ namespace SamplerEulerian
     interface ITraversable
     {
         List<int> GetPassage(int beginning, int ending);
-        List<int> GetCyclicTraversal(int beginning);
+        List<int> GetCyclicTraversal(int beginning, bool reverse);
     }
     
     public class NonEulerianComponent : ITraversable
     {
-        /*private List<int> makeUnique(List<int> walkWithRepeatVertices)
-        {
-            var result = walkWithRepeatVertices;
-
-            var currentOccurences = result.GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
-            var touchpoint = result.Select(v => (int?)v).FirstOrDefault(v => currentOccurences[(int)v] > 1);
-
-            HashSet<int> seen = new HashSet<int>();
-
-            while (touchpoint != null)
-            {
-                var firsttouch =
-                    result.IndexOf(touchpoint.Value); //can be beginning, not ending -- if ending is reached, enumeration stops
-                var lasttouch = result.LastIndexOf(touchpoint.Value);
-
-                if (firsttouch == lasttouch)
-                {
-                    seen.Add(touchpoint.Value);
-                    touchpoint = result.Select(v => (int?)v).FirstOrDefault(v =>
-                        (currentOccurences[(int)v] > 1) && (!seen.Contains(v.Value)));
-                    continue;
-                }
-
-                var newResult = result.GetRange(0, firsttouch); //take only previous
-                newResult.AddRange(
-                    result.GetRange(lasttouch,
-                        result.Count - lasttouch) //take touchpoint and the rest
-                );
-
-                result = newResult;
-
-                currentOccurences = result.GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
-
-                touchpoint = result.Select(v => (int?)v).FirstOrDefault(v =>
-                (currentOccurences[(int)v] > 1) && (!seen.Contains(v.Value)));
-            }
-
-            return result;
-        }*/
-        //
+        
         public List<int> GetPassage(int beginning, int ending)
         {
             if (beginning == ending)
@@ -96,22 +57,43 @@ namespace SamplerEulerian
             return vertices;
         }
 
-        public List<int> GetCyclicTraversal(int beginning)
+        public List<int> GetCyclicTraversal(int beginning, bool reverse)
         {
             var currentCircuit = new List<Edge<int>>();
 
-            var first = subgraph.OutEdges(beginning).First();
+            BidirectionalGraph<int, Edge<int>> subgGraph_oriented;
+            if (reverse)
+            {
+                subgGraph_oriented = new BidirectionalGraph<int, Edge<int>>();
+                foreach (var e in subgraph.Edges)
+                {
+                    subgGraph_oriented.AddVerticesAndEdge(new Edge<int>(e.Target, e.Source));
+                }
+            }
+            else
+            {
+                subgGraph_oriented = subgraph;
+            }
+
+            var first = subgGraph_oriented.OutEdges(beginning).First();
 
             var seen = new HashSet<Edge<int>>();
+            var seen_vertices = new HashSet<int>();
 
+            seen_vertices.Add(beginning);
+            
             var edge = first;
             while ((edge != null) && (edge.Target != first.Source))
             {
                 currentCircuit.Add(edge);
 
                 seen.Add(edge);
+                seen_vertices.Add(edge.Target);
+                
                 var nextSource = edge.Target;
-                edge = subgraph.OutEdges(nextSource).FirstOrDefault(e => !seen.Contains(e));
+                edge = subgGraph_oriented.OutEdges(nextSource).FirstOrDefault(
+                    e => (!seen.Contains(e)) & (!seen_vertices.Contains(e.Target))
+                );
             }
 
             if (edge != null)
@@ -120,10 +102,7 @@ namespace SamplerEulerian
             }
 
             var result = currentCircuit.Select(e => e.Target).ToList();
-
-            /*var counts = result.GroupBy(v => v).Select(g => (g.Key, g.Count())).Any(x => x.Item2 > 1);
-            if (counts)
-            { }*/
+            
 
             return result;
         }
@@ -178,7 +157,7 @@ namespace SamplerEulerian
             }
         }
 
-        public List<int> GetCyclicTraversal(int beginning)
+        public List<int> GetCyclicTraversal(int beginning, bool reverse=false)
         {
             var walkWithRepeatVertices = yieldVerticesWithRepeats(beginning, e => e.Source == beginning).ToList();
 
@@ -187,11 +166,12 @@ namespace SamplerEulerian
             /*var counts = result.GroupBy(v => v).Select(g => (g.Key, g.Count())).Any(x => x.Item2 > 1);
             if (counts)
             { }*/
+            result.Add(result.First());
             
             return result;
         }
 
-        private List<int> makeUnique(List<int> walkWithRepeatVertices)
+        protected List<int> makeUnique(List<int> walkWithRepeatVertices)
         {
             var result = walkWithRepeatVertices;
 

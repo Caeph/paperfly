@@ -518,7 +518,7 @@ namespace SamplerEulerian
                             bigDictIn[bigComponent][gateIn] = inNode;
 
                             var cycleNode = new WholeCycleNode(bigComponent, true, gateIn,
-                                cachedEulerians[bigComponent].GetCyclicTraversal(gateIn));
+                                cachedEulerians[bigComponent].GetCyclicTraversal(gateIn, false));
                             edges.Add(new Edge<CondensationNode>(inNode, cycleNode));
                         }
 
@@ -537,9 +537,10 @@ namespace SamplerEulerian
                             outNode = new GateNode(bigComponent, true, gateOut, "OUT");
                             bigDictOut[bigComponent][gateOut] = outNode;
 
-                            var traversal = cachedEulerians[bigComponent].GetCyclicTraversal(gateOut);
-                            traversal.Add(traversal.First());
-                            traversal = traversal.GetRange(1, traversal.Count - 1);
+                            var traversal = cachedEulerians[bigComponent].GetCyclicTraversal(gateOut, true);
+                            traversal.Reverse();
+                            traversal.Add(gateOut);
+                            //traversal = traversal.GetRange(1, traversal.Count - 1);
                             
                             var cycleNode = new WholeCycleNode(bigComponent, true, gateOut,
                                 traversal
@@ -557,7 +558,7 @@ namespace SamplerEulerian
                     var entry = componentToMembers[bigComponent].First(v => deBruijnGraph.MinCounts[v] == minCount);
                     //make cycle from the node
                     var pass = new WholeCycleNode(bigComponent, true, entry,
-                        cachedEulerians[bigComponent].GetCyclicTraversal(entry));
+                        cachedEulerians[bigComponent].GetCyclicTraversal(entry, false));
                     //add to some collection??
                     isolatedVertices.Add(pass);
                 }
