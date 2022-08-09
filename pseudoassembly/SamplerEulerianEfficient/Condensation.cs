@@ -538,8 +538,7 @@ namespace SamplerEulerian
                             bigDictOut[bigComponent][gateOut] = outNode;
 
                             var traversal = cachedEulerians[bigComponent].GetCyclicTraversal(gateOut, true);
-                            traversal.Reverse();
-                            traversal.Add(gateOut);
+                            
                             //traversal = traversal.GetRange(1, traversal.Count - 1);
                             
                             var cycleNode = new WholeCycleNode(bigComponent, true, gateOut,

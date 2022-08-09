@@ -102,8 +102,17 @@ namespace SamplerEulerian
             }
 
             var result = currentCircuit.Select(e => e.Target).ToList();
-            
 
+            if (reverse)
+            {
+                result.Reverse();
+                result.Add(beginning);
+            }
+            else
+            {
+                result.Insert(0,beginning);
+            }
+            
             return result;
         }
 
@@ -166,7 +175,7 @@ namespace SamplerEulerian
             /*var counts = result.GroupBy(v => v).Select(g => (g.Key, g.Count())).Any(x => x.Item2 > 1);
             if (counts)
             { }*/
-            result.Add(result.First());
+            //result.Add(result.First());
             
             return result;
         }
