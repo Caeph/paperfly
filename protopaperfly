@@ -61,7 +61,7 @@ run_on_replicate () {
   then
     echo ERROR CORRECTION DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo error correction was unsuccesful, exiting
     exit 1
   fi
 
@@ -72,7 +72,7 @@ run_on_replicate () {
   then
     echo SECONDARY DECOMPOSITION DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo secondary decomposition was unsuccesful, exiting
     exit 1
   fi
 
@@ -82,7 +82,7 @@ run_on_replicate () {
   then
     echo PARTIAL ASSEMBLY DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo partial assembly was unsuccesful, exiting
     exit 1
   fi
 
@@ -92,7 +92,7 @@ run_on_replicate () {
   then
     echo EXACT MATCH MAPPING DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo exact match mapping was unsuccesful, exiting
     exit 1
   fi
 
@@ -102,7 +102,7 @@ run_on_replicate () {
   then
     echo ALIGNMENT DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo alignment was unsuccesful, exiting
     exit 1
   fi
 
@@ -112,7 +112,7 @@ run_on_replicate () {
   then
     echo PEAK CALLING DONE
   else
-    echo decomposition was unsuccesful, exiting
+    echo peak calling was unsuccesful, exiting
     exit 1
   fi
 }
