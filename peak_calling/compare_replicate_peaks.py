@@ -155,7 +155,7 @@ def get_merged_sequences(nodupsqs, dupsqs, N=blurr):
         ends = np.hstack([groups.cumsum(), [len(seen)]])[:-1]
 
         pval = "pvalues_<" + str(df["id"].str.split("__").str[-1].str.replace("pvalues_", "").str.replace("<", "").astype(float).max())
-        ID = ":".join(df["id"].str.split("__pvalues").str[0]) + "__" + pval
+        ID = ":".join(set(df["id"].str.split("__pvalues").str[0])) + "__" + pval
 
         res = [[ID+f"__{from_}_{to_}", scaffold_row["seq"][from_:to_]] for from_, to_ in zip(starts[groups_states != 0], ends[groups_states != 0])]
         for from_, to_ in zip(starts[groups_states != 0], ends[groups_states != 0]):
@@ -270,6 +270,8 @@ replicated = to_merge[0]
 
 print("writing to output file...")
 with open(output_file, mode='w') as writer:
+    i=0
     for id, seqs in merged_variants.items():
         for seq in seqs:
-            print(f">{id}\n{seq}", file=writer)
+            print(f">{i}_{id}\n{seq}", file=writer)
+            i+=1

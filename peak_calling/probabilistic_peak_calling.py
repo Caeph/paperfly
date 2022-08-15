@@ -30,7 +30,11 @@ parser.add_argument("--output_path", default=None, type=str,
                     help="Path to output file (will be overwritten if exists).")
 parser.add_argument("--pvalue_threshold", default=0.1, type=float, help="P-value: significance threshold for a peak to "
                                                                         "be reported. Default: 0.1.")
-parser.add_argument("--states", default=3, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5.")
+parser.add_argument("--states", default=3, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5,6,7.")
+parser.add_argument("--prefer_short", dest="", action="store_true", help="Switch off the merging of neighboring peaks."
+                                                                         "Can lead to shorter peak sequences. "
+                                                                         "Preferably use with a larger number "
+                                                                         "of states.")
 
 pseudocount = 0.01
 scaling_coef = 0.99
@@ -72,7 +76,7 @@ def main(args):
     states = args.states
     allowed_states = set([2,3,4,5])
     if states not in allowed_states:
-        print("Allowed state numbers are 2, 3, 4, 5.")
+        print("Allowed state numbers are 2, 3, 4, 5, 6, 7.")
         exit(1)
 
     working_dir = args.working_dir
