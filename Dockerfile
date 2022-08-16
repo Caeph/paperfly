@@ -1,5 +1,7 @@
 # Builder stage:
 FROM ubuntu:20.04
+RUN addgroup --gid 1000 group && \
+  adduser --gid 1000 --uid 1000 --disabled-password --gecos User user
 RUN apt-get update && apt-get install -y --fix-missing python3 && apt-get install -y python3.8-venv \
 	&& apt-get install -y bcalm \
 	&& apt-get install -y jellyfish \
@@ -39,5 +41,6 @@ COPY ./README.md /src/.
 RUN cd /src/ \ 
 	&& make build && make construct
 ENV PATH /src/:$PATH
+USER 1000
 WORKDIR /src/
 
