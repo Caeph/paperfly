@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --fix-missing python3 && apt-get instal
 	&& apt-get install -y graphviz \
 	&& apt-get install -y mono-dbg \
 	&& apt-get install -y mono-complete \
+	&& apt-get install -y ncbi-blast+ \
 	&& apt-get install -y make \
 	&& apt-get install -y nuget
 	
@@ -31,7 +32,7 @@ RUN apt-get install -y gnupg ca-certificates \
 # Final stage:
 COPY ./alignment /src/alignment/.
 COPY ./decomposition /src/decomposition/.
-COPY ./example_input /src/example_input/.
+# COPY ./example_input /src/example_input/.
 COPY ./peak_calling /src/peak_calling/.
 COPY ./pseudoassembly /src/pseudoassembly/.
 COPY ./makefile /src/.

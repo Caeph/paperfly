@@ -31,10 +31,11 @@ parser.add_argument("--output_path", default=None, type=str,
 parser.add_argument("--pvalue_threshold", default=0.1, type=float, help="P-value: significance threshold for a peak to "
                                                                         "be reported. Default: 0.1.")
 parser.add_argument("--states", default=3, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5,6,7.")
-parser.add_argument("--prefer_short", dest="", action="store_true", help="Switch off the merging of neighboring peaks."
-                                                                         "Can lead to shorter peak sequences. "
-                                                                         "Preferably use with a larger number "
-                                                                         "of states.")
+parser.add_argument("--prefer_short", dest="short", action="store_true",
+                    help="Switch off the merging of neighboring peaks."
+                         "Can lead to shorter peak sequences. "
+                         "Preferably use with a larger number "
+                         "of states.")
 
 pseudocount = 0.01
 scaling_coef = 0.99
@@ -74,7 +75,7 @@ def main(args):
             exit(1)
 
     states = args.states
-    allowed_states = set([2,3,4,5])
+    allowed_states = set([2, 3, 4, 5, 6, 7])
     if states not in allowed_states:
         print("Allowed state numbers are 2, 3, 4, 5, 6, 7.")
         exit(1)
@@ -104,7 +105,7 @@ def main(args):
         else:
             counts_df = pd.merge(counts_df, counts, how="outer", on="seq")
 
-    tr_to_ctrl = {treatment_filename : control_filename}
+    tr_to_ctrl = {treatment_filename: control_filename}
 
     assembled = pd.read_csv(assembled_sqs_file, sep=";", header=None)
     assembled.columns = ["assembled", "counts"]
@@ -284,7 +285,10 @@ def main(args):
                         continue
 
                     # test whether treatment is more enriched than control
-                    mwstat, mwpval = mannwhitneyu(y_t, y_c, alternative='greater')
+                    try:
+                        mwstat, mwpval = mannwhitneyu(y_t, y_c, alternative='greater')
+                    except ValueError:
+                        mwpval = 1
                     if mwpval <= pvalue:
                         true_treatment += 1
                         segment_pvals.append(mwpval)
@@ -303,8 +307,11 @@ def main(args):
                                    show=False)
 
             # print peak sequence to file
-            peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
-                           peak_segments_states[start] == 1]
+            if args.short:
+                peak_ranges = get_state_ranges(peak_segments_states)
+            else:
+                peak_ranges = [(int(start), int(end)) for start, end in get_state_ranges(peak_segments_states) if
+                               peak_segments_states[start] == 1]
             # peak_ranges = get_state_ranges(peak_segments_states)
 
             peak_i = 1
