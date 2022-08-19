@@ -30,8 +30,8 @@ parser.add_argument("--output_path", default=None, type=str,
                     help="Path to output file (will be overwritten if exists).")
 parser.add_argument("--pvalue_threshold", default=0.1, type=float, help="P-value: significance threshold for a peak to "
                                                                         "be reported. Default: 0.1.")
-parser.add_argument("--states", default=3, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5,6,7.")
-parser.add_argument("--prefer_short", dest="short", action="store_true",
+parser.add_argument("--states", default=5, type=int, help="Number of states for GHMM. Allowed values: 2,3,4,5,6,7.")
+parser.add_argument("--prefer_short", dest="short", action="store_false",
                     help="Switch off the merging of neighboring peaks."
                          "Can lead to shorter peak sequences. "
                          "Preferably use with a larger number "

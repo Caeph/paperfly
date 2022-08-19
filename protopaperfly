@@ -35,7 +35,7 @@ print_help () {
   echo "--draw: option to draw the components graphs and graphs of assembled profile enrichments."
   echo "--no_store_low: option to throw away low abundance kmers."
  #  echo "--no_controls: option to omit controls. If this is used, empty <control> columns are expected."
-  echo "--miss_percentage: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 85"
+  echo "--miss_percentage: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 90"
 }
 
 run_on_replicate () {
@@ -118,7 +118,7 @@ run_on_replicate () {
 }
 
 # should fit to the params of the scripts
-MISS=85  # miss_percentage
+MISS=90  # miss_percentage
 K=""  # k
 OVERALL_WORKING_DIR=""  # working_dir
 MIN_ABU_MAPPING=10  # minimal_abundance_mapping
