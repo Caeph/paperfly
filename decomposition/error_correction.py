@@ -224,11 +224,12 @@ def contract_bubble(G, k, bubble_endpoint, seen_vertices, max_bubble_length, con
         return False
 
     if len(paths_to_contract) != 2:
-        print("ERROR INFO:")
-        print(paths_to_contract)
-        print("subG:")
-        print(subG.edges())
-        raise Exception("Wrong number of paths to contract.")
+        paths_to_contract = paths_to_contract[:2]
+        # print("ERROR INFO:")
+        # print(paths_to_contract)
+        # print("subG:")
+        # print(subG.edges())
+        # raise Exception("Wrong number of paths to contract.")
 
     # generate sequences, compare them
     path1, path2 = paths_to_contract[0], paths_to_contract[1]
@@ -473,7 +474,7 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
     try:
         k = args.k
         if args.max_bubble_sequence is None:
-            max_bubble_length = 3 * k
+            max_bubble_length = 1 * k
         else:
             max_bubble_length = args.max_bubble_sequence
             # max length of sequence represented in a bubble
@@ -529,7 +530,7 @@ def process_component(filename, contracted_info, output_file, args, bub_done, co
 def main(args):
     input_directory = args.raw_components
     output_directory = args.corrected_components
-    os.makedirs(output_directory)
+    os.makedirs(output_directory, exist_ok=True)
     contracted_info_filename = args.replaced
     contracted_info = open(contracted_info_filename, mode="w")
     print(f"about\tarchived_sq\tmapped_to_sq\tcounts_from_total\tedit distance", file=contracted_info)

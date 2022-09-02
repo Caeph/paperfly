@@ -24,7 +24,6 @@ parser.add_argument("--output_filename", default="aligned_corrected.csv", type=s
 
 def run_blast(working_dir, low_abund_file, profiles_file, perc_identity, k):
     db = os.path.join(working_dir, 'aligned.faa')  # BLAST database
-
     with open(db, mode='w') as writer:
         for i, line in enumerate(open(os.path.join(working_dir, profiles_file))):
             sq, counts = line.strip('\n').split(';')
@@ -49,7 +48,15 @@ def run_blast(working_dir, low_abund_file, profiles_file, perc_identity, k):
 
 
 def process_blast_output(blastout, perc_identity, k, working_dir, profiles_file, outfile):
-    results = pd.read_csv(blastout, sep="\t", header=None)
+    try:
+        results = pd.read_csv(blastout, sep="\t", header=None)
+    except pd.errors.EmptyDataError:
+        df_profiles = pd.read_csv(os.path.join(working_dir, profiles_file), sep=";", header=None)
+        df_profiles.columns = ["sq", "counts"]
+        df_profiles.index = df_profiles["sq"]
+        df_profiles = df_profiles[["counts"]]
+        df_profiles.to_csv(os.path.join(working_dir, outfile), header=None, sep=';')
+        return
     results.columns = ["query", "target", "percentage", "length", "mismatch",
                        "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"
                        ]
@@ -125,6 +132,8 @@ def main(args):
                 writer.write(f">{entry.id}\n{entry.seq}\n")
 
     blastout = run_blast(working_dir, low_abund_file_filtered, profiles_file, perc_identity, k)
+    if blastout is None:
+        return
     process_blast_output(blastout, perc_identity, k, working_dir, profiles_file, outfile)
 
     seen = os.listdir(args.working_dir)

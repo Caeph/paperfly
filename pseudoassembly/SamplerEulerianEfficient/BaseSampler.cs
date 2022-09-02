@@ -84,7 +84,6 @@ namespace SamplerEulerian
             {
                 int bottleneckCount;
                 var paths = getPathsFromIteration(out bottleneckCount);
-
                 var processedPaths = processPaths(paths, bottleneckCount).ToList();
                 write(processedPaths, outputPath);
 
@@ -301,8 +300,12 @@ namespace SamplerEulerian
             //update condensation
             //removed vertices, edges -- if not in scc, remove, otherwise construct new
             //split vertices -- if not in scc, split, otherwise construct new
+            
             if (constructNew)
-                structures = Condensation.Construct(deBruijnGraph, k);
+            {
+                //structures = Condensation.Construct(deBruijnGraph, k);
+                structures = structures.UpdateReconstruct(removedVertices, removedEdges, split, deBruijnGraph, k);
+            }
             else
             {
                 structures.Update(removedVertices, removedEdges, split);

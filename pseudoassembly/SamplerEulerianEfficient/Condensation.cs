@@ -5,9 +5,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using QuickGraph;
+using QuickGraph.Algorithms;
 using QuickGraph.Algorithms.AssigmentProblem;
 using QuickGraph.Algorithms.ConnectedComponents;
 using QuickGraph.Algorithms.ShortestPath;
+using QuickGraph.Algorithms.TopologicalSort;
 
 namespace SamplerEulerian
 {
@@ -117,6 +119,13 @@ namespace SamplerEulerian
             return BigComponents.Contains(GraphVertexToComponent[vertexInGraph]);
         }
 
+        public Condensation UpdateReconstruct(List<int> removedVertices, List<Edge<int>> removedEdges,
+            Dictionary<int, int> splitVertices, DeBruijnGraph dbgraph, int k)
+        {
+            var newCond = construct(dbgraph, k);
+            return newCond;
+        }
+
         public void Update(List<int> removedVertices, List<Edge<int>> removedEdges,
             Dictionary<int, int> splitVertices)
         {
@@ -142,7 +151,11 @@ namespace SamplerEulerian
                     var sourceComponent = GraphVertexToComponent[removedEdge.Source];
                     if (BigComponents.Contains(sourceComponent))
                     {
-                        source = bigDictOut[sourceComponent][removedEdge.Source];
+                        if (bigDictOut[sourceComponent].ContainsKey(removedEdge.Source))
+                        {
+                            source = bigDictOut[sourceComponent][removedEdge.Source];
+                        }
+                        else continue;
                     }
                     else
                     {
@@ -156,11 +169,13 @@ namespace SamplerEulerian
                     targetNode = smallComponentNodes[targetComponent];
                 else
                 {
-                    targetNode = CondensedGraph.OutEdges(source).First(e => e.Target.ID == targetComponent).Target;
+                    var x = CondensedGraph.OutEdges(source).FirstOrDefault(e => e.Target.ID == targetComponent);
+                    if (x == null) continue;
+                    targetNode = x.Target;
                 }
                 //none of these two is a bigComponent
                 //find edge, remove edge
-                var edge = CondensedGraph.OutEdges(source).First(e => e.Target == targetNode); //there is exactly one
+                var edge = CondensedGraph.OutEdges(source).FirstOrDefault(e => e.Target == targetNode); //there is exactly one
                 CondensedGraph.RemoveEdge(edge);
             }
             
@@ -318,7 +333,7 @@ namespace SamplerEulerian
 
         private static EulerianCycle getEulerianApproximation(BidirectionalGraph<int, Edge<int>> orig)
         {
-            var componentGraph = orig.Clone();
+           var componentGraph = orig.Clone();
             //solve chinese postman on componentGraph
             //no negative cycles (no negative weights), strongly connected
             //find unbalanced vertices
@@ -333,27 +348,32 @@ namespace SamplerEulerian
             }
             
             //find paths from IN to OUT
-            var floydWarshall = new FloydWarshallAllShortestPathAlgorithm<int, Edge<int>>(componentGraph, e => 1d);
-            floydWarshall.Compute();
-            
+            var dijkstra = new DijkstraShortestPathAlgorithm<int, Edge<int>>(orig, e => 1d);
+
             //find minimal cost perfect pairing -- hungarian algorithm
             int[,] costs = new int[unbalanced_in.Count,unbalanced_out.Count]; //spojeni iteho IN s jtym OUT
             for (int i = 0; i < unbalanced_in.Count; i++)
-            for (int j = 0; j < unbalanced_out.Count; j++)
             {
                 var vi = unbalanced_in[i];
-                var vo = unbalanced_out[j];
-                double cost;
-                if (floydWarshall.TryGetDistance(vi, vo, out cost))
+                dijkstra.Compute(vi);
+                for (int j = 0; j < unbalanced_out.Count; j++)
                 {
+                    var vo = unbalanced_out[j];
+                    double cost;
+
+                    cost = dijkstra.Distances[vo];
                     costs[i, j] = (int)cost;
+                    //if (floydWarshall.TryGetDistance(vi, vo, out cost))
+                    //{
+                    //    costs[i, j] = (int)cost;
+                    //}
                 }
             }
             var hungarian = new HungarianAlgorithm(costs);
             var assignments = hungarian.Run();
 
             var adjustedGraph = componentGraph.Clone();
-            //zdvojit hrany
+            //double edges
             for (int i = 0; i < assignments.Length; i++)
             {
                 int j = assignments[i];
@@ -361,17 +381,12 @@ namespace SamplerEulerian
                 var to = unbalanced_out[j];
 
                 IEnumerable<Edge<int>> pathToAdjust;
-                floydWarshall.TryGetPath(from, to, out pathToAdjust);
+                var trypath = orig.ShortestPathsDijkstra(e => 1d, from);
+                trypath(to, out pathToAdjust);
+
+                //floydWarshall.TryGetPath(from, to, out pathToAdjust);
                 adjustedGraph.AddEdgeRange(pathToAdjust);
             }
-
-            /*if (!isEulerian(adjustedGraph))
-            {
-                 unbalanced =
-                     adjustedGraph.Vertices.Where(v => componentGraph.InDegree(v) != componentGraph.OutDegree(v)).ToList();
-                 unbalanced_in = unbalanced.Where(v => componentGraph.InDegree(v) > componentGraph.OutDegree(v)).ToList();
-                 unbalanced_out = unbalanced.Where(v => componentGraph.InDegree(v) < componentGraph.OutDegree(v)).ToList();
-            }*/ 
             var eulerian = getExistingEulerian(adjustedGraph);
 
             return eulerian;
@@ -425,7 +440,6 @@ namespace SamplerEulerian
                             bigDictIn[bigComponent] = new Dictionary<int, CondensationNode>();
                             inNode = new GateNode(bigComponent, true, gateIn, "IN");
                             bigDictIn[bigComponent][gateIn] = inNode;
-                            
                         }
                         else
                         {
@@ -458,9 +472,6 @@ namespace SamplerEulerian
                                 outNode = bigDictOut[bigComponent][gateOut];
                             }
                         }
-
-                        if ((gateIn == 10272) || (gateOut == 10272))
-                        {}
                         
                         var walkthrough = eulerianTraversal(eulerian, gateIn, gateOut); //unique for every gateIN->gateOUT
                         var walkthroughNode = new WalkthroughNode(bigComponent, true, gateIn, gateOut, walkthrough);
@@ -474,23 +485,103 @@ namespace SamplerEulerian
         }
 
 
+        private static Condensation construct(DeBruijnGraph dbgraph, int k, StronglyConnectedComponentsAlgorithm<int, Edge<int>> stronglyConnected = null, Dictionary<int, ITraversable>cachedEulerians = null)
+        {
+            var graph = dbgraph.Graph;
+
+            if (stronglyConnected == null)
+            {
+                stronglyConnected = new StronglyConnectedComponentsAlgorithm<int, Edge<int>>(graph);
+                stronglyConnected.Compute();
+            }
+
+            // output from tarjan gives topological sort...
+            var vertexToComponent = stronglyConnected.Components.ToDictionary(
+                pair => pair.Key, pair => pair.Value
+            );
+            var componentToMembers = vertexToComponent.GroupBy(r => r.Value
+            ).ToDictionary(t => t.Key, t => t.Select(r => r.Key).ToArray());
+
+            var bigComponents = new HashSet<int>();
+
+            if (cachedEulerians == null)
+            {
+                cachedEulerians = new Dictionary<int, ITraversable>();
+            
+                for (int component = 0; component < stronglyConnected.ComponentCount; component++)
+                {
+                    int size = componentToMembers[component].Length;
+                    if (size > 1)
+                    {
+                        bigComponents.Add(component);
+
+                        var eulerian = calculateEulerian(stronglyConnected.Graphs[component]);
+                        cachedEulerians[component] = eulerian;
+                    }
+                }
+            }
+            
+            var bigDictIn = new Dictionary<int, Dictionary<int, CondensationNode>>(); //component --> dict[ vertex entryID --> InGateNode ]
+            var bigDictOut = new Dictionary<int, Dictionary<int, CondensationNode>>(); //component --> dict[ vertex entryID --> OutGateNode ]
+            var smallDict = new Dictionary<int, CondensationNode>();
+
+            var x = getBigPassEdges(
+                graph, bigComponents, vertexToComponent, componentToMembers, cachedEulerians, stronglyConnected.ComponentCount, dbgraph, bigDictIn, bigDictOut, smallDict);
+            var edges = x.Item1;
+            var isolated = x.Item2.ToHashSet();
+            
+            //add bigcomponents on edges
+            //add isolated vertices
+            
+            var condensedGraph = new BidirectionalGraph<CondensationNode, Edge<CondensationNode>>();
+            condensedGraph.AddVerticesAndEdgeRange(edges);
+            condensedGraph.AddVertexRange(isolated);
+
+            List<CondensationNode> toposort = new List<CondensationNode>();
+            foreach (var vertex in isolated)
+            {
+                toposort.Add(vertex); //do not affect toposort
+            }
+
+            var sources = edges.Select(e => e.Source
+            ).OrderByDescending(s => s.ID).ToList();
+            var help = sources.ToHashSet();
+            var targets = edges.Select(e => e.Target).Where(v => !help.Contains(v)).ToList();
+            toposort.AddRange(sources);
+            toposort.AddRange(targets);
+
+            var condensation = new Condensation(stronglyConnected, bigComponents, vertexToComponent,
+                toposort, componentToMembers, condensedGraph, dbgraph, k, smallDict, bigDictIn, bigDictOut
+            );
+            
+            return condensation;
+        }
+
         private static (List<Edge<CondensationNode>>, List<CondensationNode>) getBigPassEdges(BidirectionalGraph<int, Edge<int>> graph, HashSet<int> bigComponents, 
             Dictionary<int,int> vertexToComponent, Dictionary<int,int[]> componentToMembers, Dictionary<int, ITraversable> cachedEulerians, int componentCount, DeBruijnGraph deBruijnGraph,
        Dictionary<int, Dictionary<int, CondensationNode>> bigDictIn,
        Dictionary<int, Dictionary<int, CondensationNode>> bigDictOut, //component --> dict[ vertex entryID --> OutGateNode ]
-       Dictionary<int, CondensationNode> smallDict
+       Dictionary<int, CondensationNode> smallDict, int n=5
             )
         {
             var edges = new List<Edge<CondensationNode>>();
             var isolatedVertices = new List<CondensationNode>();
+
+            var outGates = new Dictionary<int, List<int>>();
+            //var inGates = new Dictionary<int, List<int>>();
 
             foreach (var bigComponent in bigComponents)
             {
                 var incomingEdges = componentToMembers[bigComponent].SelectMany(v => graph.InEdges(v)).Where(e => vertexToComponent[e.Source] != bigComponent);
                 var outgoingEdges = componentToMembers[bigComponent].SelectMany(v => graph.OutEdges(v)).Where(e => vertexToComponent[e.Target] != bigComponent);
 
-                var gatesIn = incomingEdges.Select(e => e.Target).Distinct().ToList();
-                var gatesOut = outgoingEdges.Select(e => e.Source).Distinct().ToList();
+                var gatesIn = incomingEdges.Select(e => e.Target).Distinct().Take(n).ToList();
+                //inGates[bigComponent] = gatesIn;
+                var gatesOut = outgoingEdges.Select(e => e.Source).Distinct().Take(n).ToList();
+                outGates[bigComponent] = gatesOut;
+
+                incomingEdges = null;
+                outgoingEdges = null;
 
                 bigDictIn[bigComponent] = null;
                 bigDictOut[bigComponent] = null;
@@ -565,7 +656,9 @@ namespace SamplerEulerian
             
             foreach (var bigComponent in bigComponents)
             {
-                var outgoingEdges = componentToMembers[bigComponent].SelectMany(v => graph.OutEdges(v)).Where(e => vertexToComponent[e.Target] != bigComponent);
+                var outgoingEdges = componentToMembers[bigComponent].SelectMany(v => graph.OutEdges(v)).Where(
+                    e => (vertexToComponent[e.Target] != bigComponent) && (outGates[bigComponent].Contains(e.Source))
+                    );
                 foreach (var outgoingEdge in outgoingEdges)
                 {
                     var fromNode = bigDictOut[bigComponent][outgoingEdge.Source];
@@ -573,7 +666,10 @@ namespace SamplerEulerian
                     CondensationNode toNode;
                     if (bigComponents.Contains(toComponent))
                     {
-                        toNode = bigDictIn[toComponent][outgoingEdge.Target];
+                        if (bigDictIn[toComponent].ContainsKey(outgoingEdge.Target))
+                            toNode = bigDictIn[toComponent][outgoingEdge.Target];
+                        else
+                            continue;
                     }
                     else
                     {
@@ -615,15 +711,18 @@ namespace SamplerEulerian
                     var inCondSuccessor = vertexToComponent[inGraphSuccessor];
                     if (inCondSuccessor == singleNodeComponent)
                     {
-                        //nemelo by se dit -- self-loop, nezajem...
+                        //should not be of interest -- self-loop, skip...
                         continue;
                     }
 
                     if (bigComponents.Contains(inCondSuccessor))
                     {
                         //najit IN gatu tehle big componenty
-                        var gate = bigDictIn[inCondSuccessor][inGraphSuccessor];
-                        edges.Add(new Edge<CondensationNode>(currentNode, gate));
+                        if (bigDictIn[inCondSuccessor].ContainsKey(inGraphSuccessor))
+                        {
+                            var gate = bigDictIn[inCondSuccessor][inGraphSuccessor];
+                            edges.Add(new Edge<CondensationNode>(currentNode, gate));
+                        }
                         continue;
                     }
                     
@@ -648,110 +747,7 @@ namespace SamplerEulerian
 
         public static Condensation Construct(DeBruijnGraph dbgraph, int k)
         {
-            var graph = dbgraph.Graph;
-            
-            var stronglyConnected = new StronglyConnectedComponentsAlgorithm<int, Edge<int>>(graph);
-            stronglyConnected.Compute();
-
-            // output z tarjanova algoritmu na scc dava rovnou topological sort...
-            var vertexToComponent = stronglyConnected.Components.ToDictionary(
-                pair => pair.Key, pair => pair.Value
-            );
-            var componentToMembers = vertexToComponent.GroupBy(r => r.Value
-            ).ToDictionary(t => t.Key, t => t.Select(r => r.Key).ToArray());
-
-            var bigComponents = new HashSet<int>();
-            //var passableBigComponents = new HashSet<int>();
-            var cachedEulerians = new Dictionary<int, ITraversable>();
-            
-            for (int component = 0; component < stronglyConnected.ComponentCount; component++)
-            {
-                int size = componentToMembers[component].Length;
-                if (size > 1)
-                {
-                    bigComponents.Add(component);
-                    
-                    //var hasInEdges = componentToMembers[component].SelectMany(v => graph.InEdges(v)).Any(e => vertexToComponent[e.Source] != component);
-                    //var hasOutEdges = componentToMembers[component].SelectMany(v => graph.OutEdges(v)).Any(e => vertexToComponent[e.Target] != component);
-
-                    /*if (hasInEdges && hasOutEdges)
-                        passableBigComponents.Add(component);*/
-
-                    var eulerian = calculateEulerian(stronglyConnected.Graphs[component]);
-                    cachedEulerians[component] = eulerian;
-                }
-            }
-            var bigDictIn = new Dictionary<int, Dictionary<int, CondensationNode>>(); //component --> dict[ vertex entryID --> InGateNode ]
-            var bigDictOut = new Dictionary<int, Dictionary<int, CondensationNode>>(); //component --> dict[ vertex entryID --> OutGateNode ]
-            var smallDict = new Dictionary<int, CondensationNode>();
-
-            var x = getBigPassEdges(
-                graph, bigComponents, vertexToComponent, componentToMembers, cachedEulerians, stronglyConnected.ComponentCount, dbgraph, bigDictIn, bigDictOut, smallDict);
-            var edges = x.Item1;
-            var isolated = x.Item2.ToHashSet();
-            
-            //add bigcomponents on edges
-            
-            //add isolated vertices
-            
-            var condensedGraph = new BidirectionalGraph<CondensationNode, Edge<CondensationNode>>();
-            condensedGraph.AddVerticesAndEdgeRange(edges);
-            condensedGraph.AddVertexRange(isolated);
-
-            List<CondensationNode> toposort = new List<CondensationNode>();
-            foreach (var vertex in isolated)
-            {
-                toposort.Add(vertex); //do not affect toposort
-            }
-            foreach (var component in Enumerable.Range(0, stronglyConnected.ComponentCount))
-            {
-                if (bigComponents.Contains(component))
-                {
-                    if (bigDictIn[component] != null)
-                    {
-                        var ingates = bigDictIn[component].Values;
-                        foreach (var ingate in ingates)
-                        {
-                            toposort.Add(ingate);
-                            foreach (var e_iw in condensedGraph.OutEdges(ingate))
-                            {
-                                var walkthrough = e_iw.Target;
-                                toposort.Add(walkthrough);
-                                foreach (var e_wo in condensedGraph.OutEdges(walkthrough))
-                                {
-                                    var outgate = e_wo.Target;
-                                    toposort.Add(outgate);
-                                }
-                            }
-                        }
-                    }
-                    else // nejsou ingaty, zacina se rovnou walkthrough
-                    if (bigDictOut[component] != null)
-                    {
-                        var outgates = bigDictOut[component].Values;
-                        foreach (var outgate in outgates)
-                        {
-                            foreach (var e_wo in condensedGraph.InEdges(outgate))
-                            {
-                                var walkthrough = e_wo.Source;
-                                toposort.Add(walkthrough);
-                            }
-                            toposort.Add(outgate);
-                        }
-                    }
-                    //otherwise
-                }
-                else
-                {
-                    var node = smallDict[component];
-                    toposort.Add(node);
-                }
-            }
-
-            var condensation = new Condensation(stronglyConnected, bigComponents, vertexToComponent,
-                toposort, componentToMembers, condensedGraph, dbgraph, k, smallDict, bigDictIn, bigDictOut
-            );
-            
+            var condensation = construct(dbgraph, k);
             return condensation;
         }
     }

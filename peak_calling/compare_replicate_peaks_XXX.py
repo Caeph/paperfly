@@ -155,9 +155,10 @@ def get_merged_sequences(nodupsqs, dupsqs, N=blurr):
         ends = np.hstack([groups.cumsum(), [len(seen)]])[:-1]
 
         pval = "pvalues_<" + str(df["id"].str.split("__").str[-1].str.replace("pvalues_", "").str.replace("<", "").astype(float).max())
-        ID = ":".join(set(df["id"].str.split("__pvalues").str[0])) + "__" + pval
+        ID = ":".join([x[:12] for x in set(df["id"].str.split("__pvalues").str[0])]) + "__" + pval
 
-        res = [[ID+f"__{from_}_{to_}", scaffold_row["seq"][from_:to_]] for from_, to_ in zip(starts[groups_states != 0], ends[groups_states != 0])]
+        res = [[ID+f"__{from_}_{to_}", scaffold_row["seq"][from_:to_]] for from_, to_ in zip(starts[groups_states != 0],
+                                                                                             ends[groups_states != 0])]
         for from_, to_ in zip(starts[groups_states != 0], ends[groups_states != 0]):
             maps[ID + f"__{from_}_{to_}"] = [scaffold_row["seq"][from_:to_]]
 
@@ -194,8 +195,8 @@ def merge_pair(pair):
     Ssame, Isame = S[same,:], I[same,:]
     matchd_df1 = np.arange(len(df1))[same]
     matchd_df2 = np.array([i[ind] for i, ind in zip(Isame, Ssame.argmin(axis=1))])
-    merges_sqs, maps = get_merged_sequences(df1.iloc[matchd_df1][["id", "seq", "reverse"]], # no duplicities
-                         df2.iloc[matchd_df2][["id", "seq", "reverse"]], # yes duplicities
+    merges_sqs, maps = get_merged_sequences(df1.iloc[matchd_df1][["id", "seq", "reverse"]],  # no duplicities
+                         df2.iloc[matchd_df2][["id", "seq", "reverse"]],  # yes duplicities
                          )
     merges_sqs["reverse"] = merges_sqs["seq"].str.replace('A', 'X', regex=False).str.replace('T', 'A', regex=False
                                             ).str.replace('X', 'T', regex=False).str.replace('C', 'X', regex=False
@@ -221,6 +222,8 @@ def merge_maps(newmaps, oldmaps):
         for x in parts:
             seqs.extend(oldmaps[x])
         result[item] = seqs
+
+
 
     return result
 

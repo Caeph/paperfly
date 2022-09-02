@@ -66,7 +66,12 @@ run_on_replicate () {
   fi
 
   echo SECONDARY DECOMPOSITION
-  cat "$WORKING_DIR"/corrected/* >"$WORKING_DIR"/corrected_graph.unitigs.fasta
+  printf "" >"$WORKING_DIR"/corrected_graph.unitigs.fasta
+  # cat "$WORKING_DIR"/corrected/* >"$WORKING_DIR"/corrected_graph.unitigs.fasta
+  for item in $(ls "$WORKING_DIR/corrected/")
+  do
+  	cat "$WORKING_DIR/corrected/$item" >>"$WORKING_DIR"/corrected_graph.unitigs.fasta
+  done
   $PYTHON "$SECDECOMPOSITION" --corrected_graph "$WORKING_DIR"/corrected_graph.unitigs.fasta --corrected_components "$WORKING_DIR"/corrected_decomposed
   if [ $? -eq 0 ]
   then
@@ -267,6 +272,6 @@ do
   (( i++ ))
 done
 
-$PYTHON "$REPLICATECALLING" $PARTNERTHR "$OVERALL_WORKING_DIR/replicated_peaks.fasta" $(ls "$OVERALL_WORKING_DIR"/replicate*/called_peaks.fasta)
+# $PYTHON "$REPLICATECALLING" $PARTNERTHR "$OVERALL_WORKING_DIR/replicated_peaks.fasta" $(ls "$OVERALL_WORKING_DIR"/replicate*/called_peaks.fasta)
 
 echo PAPERFLY RUN FINISHED, PEAKS STORED IN "$OVERALL_WORKING_DIR/replicated_peaks.fasta"

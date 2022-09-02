@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --fix-missing python3 && apt-get instal
 	&& apt-get install -y mono-complete \
 	&& apt-get install -y ncbi-blast+ \
 	&& apt-get install -y make \
-	&& apt-get install -y nuget
+	&& apt-get install -y nuget \
+	&& apt-get install -y wget
 	
 # Create the virtual environment
 RUN python3 -m venv /src/venv
@@ -38,6 +39,7 @@ COPY ./pseudoassembly /src/pseudoassembly/.
 COPY ./makefile /src/.
 COPY ./protopaperfly /src/.
 COPY ./README.md /src/.
+COPY ./save_to_s3.py /src/.
 
 RUN cd /src/ \ 
 	&& make build && make construct

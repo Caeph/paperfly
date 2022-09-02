@@ -1,6 +1,7 @@
 # generated script with absolute paths
 paperfly
 
+clouds.yaml
 # python virtual environment
 venv/
 *__pycache__/
