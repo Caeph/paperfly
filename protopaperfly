@@ -13,7 +13,7 @@ ASSEMBLER="$PAPERFLYPATH/pseudoassembly/SamplerEulerianEfficient"
 EXACTMATCHING="$PAPERFLYPATH/alignment/exact_match/Aligner3"
 CLUSTERING_SCRIPT="$PAPERFLYPATH/alignment/profiles/align_blast.py"
 PEAKCALLING="$PAPERFLYPATH/peak_calling/probabilistic_peak_calling.py"
-REPLICATECALLING="$PAPERFLYPATH/peak_calling/compare_replicate_peaks.py"
+REPLICATECALLING="$PAPERFLYPATH/peak_calling/compare_replicate_peaks_fast.py"
 
 print_help () {
   echo "This is PAPerFly, the Partial Assembly-based Peak-Finder, version $VERSION".
@@ -272,6 +272,6 @@ do
   (( i++ ))
 done
 
-# $PYTHON "$REPLICATECALLING" $PARTNERTHR "$OVERALL_WORKING_DIR/replicated_peaks.fasta" $(ls "$OVERALL_WORKING_DIR"/replicate*/called_peaks.fasta)
+$PYTHON "$REPLICATECALLING" $PARTNERTHR "$OVERALL_WORKING_DIR/replicated_peaks.fasta" $(ls "$OVERALL_WORKING_DIR"/replicate*/called_peaks.fasta)
 
 echo PAPERFLY RUN FINISHED, PEAKS STORED IN "$OVERALL_WORKING_DIR/replicated_peaks.fasta"
