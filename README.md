@@ -76,7 +76,6 @@ Other parameters are:
 
 ```--no_store_low```: option to throw away low abundance kmers.
 
- #  echo "--no_controls: option to omit controls. If this is used, empty <control> columns are expected."
 ```--miss_percentage <0-100>```: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 90"
 
 # Reference
