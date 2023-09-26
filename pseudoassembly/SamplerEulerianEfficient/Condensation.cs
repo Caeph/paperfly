@@ -318,7 +318,7 @@ namespace SamplerEulerian
                 
                 var nextCircuit = getCircuit(componentGraphCopy, firstEdge);
                 
-                //ne na konec, ale za first
+                //not to the end, but behind first
                 var firstIndex = protoEulerian.IndexOf(helper);
                 var i = firstIndex+1;
                 foreach (var e in nextCircuit)
@@ -561,7 +561,7 @@ namespace SamplerEulerian
             Dictionary<int,int> vertexToComponent, Dictionary<int,int[]> componentToMembers, Dictionary<int, ITraversable> cachedEulerians, int componentCount, DeBruijnGraph deBruijnGraph,
        Dictionary<int, Dictionary<int, CondensationNode>> bigDictIn,
        Dictionary<int, Dictionary<int, CondensationNode>> bigDictOut, //component --> dict[ vertex entryID --> OutGateNode ]
-       Dictionary<int, CondensationNode> smallDict, int n=5
+       Dictionary<int, CondensationNode> smallDict, int n=3
             )
         {
             var edges = new List<Edge<CondensationNode>>();

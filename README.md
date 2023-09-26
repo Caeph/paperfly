@@ -40,24 +40,44 @@ These parameters are valid for the latest package. We are currently reworking pa
 
 To run the program when it is in your path, use
 ```
-paperfly --input_description <csv file> --input_directory <path to directory with all input files> --k <k> --control_file <control filename>
+paperfly --input_description <tsv file> --input_directory <path to directory with all input files> --k <k>
 ```
 The input and the control file can be in FASTA, FASTQ or gzipped FASTQ format (then use the fastq option). The value of K corresponds to the lenght of k-mers in the de Bruijn graph of the reads. We recommend you start with k=+-30.
 The order of the parameters is not fixed.
 
+The required parameters are:
+```--input_description <tsv file>```: path to a tsv file describing treatment vs. control relationships for replicates. 
+It should look like this: 
+
+```
+fastq   control
+<input file 1>    <respective control file>
+<input file 2>    <respective control file>
+```
+
+```--input_directory <path to directory with ALL files in input_description>```: path to a directory with all input files. Cannot be current directory."
+```--k <K>```: k-mer length for sliding window probing of the sequencing data. Cannot be a multiple of 4 (BCALM property).
+
 Other parameters are:
-- ```--omit_control```: logical switch. If you use this switch instead of specifying a control file, the program will not perform any control normalization.
-- ```--minimal_abundance <value>```: absolute number denoting the minimal abundance of a k-mer. 
-- ```--minimal_abundance_percentile <value>```: percentile of k-mer abundancy to use as minimal abundance threshold. If absolute value is defined, this parameter is not used. Default: 75.
-- ```--working_directory <path>```: name of the directory with results. Default: "output_paperfly_datetime".
-- ```--draw```: logical switch. If used, the layout of the weakly connected components is drawn. There is a timeout threshold, therefore, too big components may not be drawn.
-- ```--exclude_low```: logical switch. If used, the insufficiently abundant k-mers will be completely deleted. Otherwise, these k-mers are included in the clustering alignment step.
-- ```--allowed_misses <value>```: distance threshold for clustering relative to k ("how many errors can be in a k-mer for two sequences to be mapped together"). Default: 1. On human data, we got much better results with setting 0.01.
-- ```--window <value>```: rolling window width for curve smoothing during peak finding. Default: 100.
-- ```--prominence <value>```: minimal prominence of a peak. Default: 20.
-- ```--peak_format <consensus|sq_count|meme>```: whether to print only a consensus sequence of a peak (default), to print all the sequences with their count, or to print a single sequence for every occurence (recommended if you plan to follow up with MEME).
-- ```--peak_min_width <value>```: minimal peak width. Default: k/2.
-- ```--peak_max_width <value>```: maximal peak width. Default: infinity.
+
+```--working_dir <path>```: path to a directory to store results. Must not exist, otherwise exception is thrown.
+
+```--minimal_abundance <N>```: minimal abundance of a k-mer. Should be lower for higher k-mers. Note that lower abundance numbers lead to higher data complexity and longer runtime.If not specified, it is set as 90th percentile in the (non-unique) k-mer counts. Percentile can
+                        be adjusted by the --minimal_abundance_percentile parameter.
+
+```--minimal_abundance_percentile <0-100>```: defined percentile of sufficiently abundant kmers. This calculation is time-consuming, but comes in handy if you don\'t know much about the input data size.
+  BCALM also makes a number of temporary files during the calculation. These will be removed afterwards. Default option, 95th percentile.
+
+```--minimal_abundance_mapping <N>```: abundance threshold of a low abundance kmer count to be considered a sequencing error. Default: 10.
+
+```--assembly_report_step <N>```: number of steps after which time and graph state are reported during pseudoassembly. Default: 250.
+
+```--draw```: option to draw the components graphs and graphs of assembled profile enrichments.
+
+```--no_store_low```: option to throw away low abundance kmers.
+
+ #  echo "--no_controls: option to omit controls. If this is used, empty <control> columns are expected."
+```--miss_percentage <0-100>```: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 90"
 
 # Reference
 The article describing the method was not published yet, but we are working on that. Both BCALM and Jellyfish will be properly cited in the publication.
