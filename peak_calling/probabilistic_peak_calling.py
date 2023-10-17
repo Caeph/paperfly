@@ -36,6 +36,9 @@ parser.add_argument("--prefer_short", dest="short", action="store_false",
                          "Can lead to shorter peak sequences. "
                          "Preferably use with a larger number "
                          "of states.")
+parser.add_argument("--filtering_fraction", default=1, type=float, help="Filter input sequences based on "
+                                                                        "their length: keep only sequence of length of "
+                                                                        "at least <filtering_fraction>*k.")
 
 pseudocount = 0.01
 scaling_coef = 0.99
@@ -109,6 +112,15 @@ def main(args):
 
     assembled = pd.read_csv(assembled_sqs_file, sep=";", header=None)
     assembled.columns = ["assembled", "counts"]
+
+    # filtering
+    if args.filtering_fraction > 1:
+        print(f"Filtering the assembled sequences, keeping only those longer than {np.round(args.filtering_fraction * args.k)}")
+        prev_len = len(assembled)
+        assembled = assembled[assembled['assembled'].str.len() >= args.filtering_fraction * args.k].copy()
+        after_len = len(assembled)
+        print(f"{after_len} / {prev_len}")
+
     assembled["counts"] = assembled["counts"].apply(lambda x: [int(y) for y in x.split(",")])
 
     treatment_cols = ["treatment" + "_" + x for x in [treatment_filename]]

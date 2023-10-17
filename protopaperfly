@@ -36,6 +36,7 @@ print_help () {
   echo "--no_store_low: option to throw away low abundance kmers."
  #  echo "--no_controls: option to omit controls. If this is used, empty <control> columns are expected."
   echo "--miss_percentage: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 90"
+  echo "--filtering_fraction: a coefficient for filtering out too short chiptigs before peak calling. Our experiments show that such a filter can lead to better accuracy with more complex data. Default: 1.0 (keep everything). If you want to filter, we recomment starting with 1.1 or 1.25."
 }
 
 run_on_replicate () {
@@ -112,7 +113,7 @@ run_on_replicate () {
   fi
 
   echo RUNNING PEAK CALLING
-  $PYTHON "$PEAKCALLING" --assembled_path "$WORKING_DIR"/aligned_corrected.csv --working_dir "$WORKING_DIR" --treatment_counts treatment.csv --control_counts control.csv --k $K --threads 8 --output_path "$WORKING_DIR"/called_peaks.fasta --problems_no "$REPLICATES_NO"
+  $PYTHON "$PEAKCALLING" --assembled_path "$WORKING_DIR"/aligned_corrected.csv --working_dir "$WORKING_DIR" --treatment_counts treatment.csv --control_counts control.csv --k $K --threads 8 --output_path "$WORKING_DIR"/called_peaks.fasta --problems_no "$REPLICATES_NO" $FILTER
   if [ $? -eq 0 ]
   then
     echo PEAK CALLING DONE
@@ -135,6 +136,7 @@ ABU=""  # minimal_abundance OR minimal_abundance_percentile
 LOW=""  # no_store_low
 PARTNERTHR="0.1"
 REPLICATES_NO=1
+FILTER=""
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -195,6 +197,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --miss_percentage)
       MISS="$2"
+      shift
+      shift
+      ;;
+    --filtering_fraction)
+      FILTER="--filtering_fraction $2"
       shift
       shift
       ;;
@@ -259,6 +266,7 @@ echo "--miss_percentage $MISS"
 echo "--minimal_abundance_mapping $MIN_ABU_MAPPING"
 echo "$DRAW"
 echo "$LOW"
+echo ""$FILTER""
 
 # run program
 i=1  # replicate i
