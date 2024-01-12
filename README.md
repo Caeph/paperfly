@@ -79,4 +79,6 @@ Other parameters are:
 ```--miss_percentage <0-100>```: identity percentage for a low abundance kmer to be mapped to assembled profile. Values from 0 to 100, default 90"
 
 # Reference
-The article describing the method was not published yet, but we are working on that. Both BCALM and Jellyfish will be properly cited in the publication.
+If you are using this software, please cite the following article:
+
+Faltejsková, Kateřina, and Jiří Vondrášek. "PAPerFly: Partial Assembly-based Peak Finder for ab initio binding site reconstruction." BMC bioinformatics 24.1 (2023): 487.
